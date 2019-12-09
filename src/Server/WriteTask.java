@@ -5,13 +5,16 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
+import java.util.Vector;
 
 public class WriteTask implements Runnable {
 
     private SelectionKey selectionKey;
+    private Vector<String> loggedUsers;
 
-    public WriteTask(SelectionKey currentSelectionKey) {
+    public WriteTask(SelectionKey currentSelectionKey, Vector<String> loggedUsers) {
         selectionKey = currentSelectionKey;
+        this.loggedUsers = loggedUsers;
     }
 
     @Override
@@ -30,6 +33,14 @@ public class WriteTask implements Runnable {
             }else{
                 System.err.println("The attachment of the selection key in not a know instance, terminating task");
                 return;
+            }
+
+            String[] messageFragments = message.split(" ");
+
+            switch (messageFragments[0].toLowerCase()){
+                case Consts.LOGIN_REQUEST:
+
+                    break;
             }
 
 

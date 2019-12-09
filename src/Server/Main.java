@@ -12,7 +12,10 @@ import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Vector;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
@@ -28,6 +31,7 @@ public class Main {
             Registry r = LocateRegistry.createRegistry(Consts.RMI_PORT);
             r.bind(Consts.WQ_STUB_NAME, wqRegister);
 
+            Vector<String> loggedUsers = new Vector<>();
 
             ThreadPoolExecutor threadPool = (ThreadPoolExecutor) Executors.newFixedThreadPool(Server.Consts.SERVER_THREADS);
 
@@ -82,7 +86,7 @@ public class Main {
                                     if a ByteBuffer is found -> an incomplete write happened, tries to complete it.
                                  */
 
-                                threadPool.execute(new WriteTask(currentKey));
+                                threadPool.execute(new WriteTask(currentKey, loggedUsers));
 
                             } else {
                                 System.err.println("Key has not been recognised");

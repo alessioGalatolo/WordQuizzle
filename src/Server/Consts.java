@@ -7,4 +7,5 @@ public class Consts {
     public static final String WQ_STUB_NAME = "My word quizzle name";
     public static final int ARRAY_INIT_SIZE = 1024;
     public static final int INT_SIZE = 4;
+    public static final String LOGIN_REQUEST = "login";
 }
