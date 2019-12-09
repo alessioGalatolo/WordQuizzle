@@ -12,7 +12,7 @@ import java.rmi.registry.Registry;
 public class Main {
     public static void main(String[] args) {
         try {
-            Registry r = LocateRegistry.getRegistry(Integer.parseInt(args[0]));
+            Registry r = LocateRegistry.getRegistry(Consts.RMI_PORT);
             WQRegisterInterface serverObject = (WQRegisterInterface) r.lookup(Consts.WQ_STUB_NAME); //get remote object
 
             try {
@@ -22,6 +22,7 @@ public class Main {
             } catch (WQRegister.InvalidPasswordException e) {
                 e.printStackTrace();
             }
+
 
 
         } catch (RemoteException | NotBoundException e) {
