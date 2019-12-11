@@ -210,10 +210,6 @@ class UserDB {
         LinkedList<User> getLinkedNodes(User user){
             return adjacencyList.get(user.getId());
         }
-
-
-
-
     }
 
     private static class UserNotFoundException extends Exception {

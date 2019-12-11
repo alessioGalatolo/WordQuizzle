@@ -1,5 +1,7 @@
 package Server;
 
+import Commons.WQRegisterInterface;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
@@ -22,6 +24,14 @@ import java.util.concurrent.ThreadPoolExecutor;
 public class Main {
 
     public static void main(String[] args) {
+
+        userDBStub();
+
+
+
+
+
+
 
         try {
 
@@ -111,5 +121,24 @@ public class Main {
         } catch (RemoteException | AlreadyBoundException e) {
             e.printStackTrace();
         }
+    }
+
+
+    //method to test userDB
+    private static void userDBStub() {
+        ThreadPoolExecutor threadPool = (ThreadPoolExecutor) Executors.newFixedThreadPool(20);
+
+        for(int i = 0; i < 1000; i++) {
+            int finalI = i;
+            threadPool.execute(() -> {
+                try {
+                    UserDB.addUser("User" + finalI, "Password" + finalI);
+                } catch (WQRegisterInterface.UserAlreadyRegisteredException | WQRegisterInterface.InvalidPasswordException e) {
+                    e.printStackTrace();
+                }
+            });
+        }
+
+        //TODO: keep test
     }
 }
