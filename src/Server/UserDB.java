@@ -2,44 +2,35 @@ package Server;
 
 import Commons.WQRegisterInterface;
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
+import java.util.Comparator;
 import java.util.LinkedList;
+import java.util.Vector;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.ReentrantLock;
 
 //package private class, the class and the member can only be called by the Server components
 class UserDB {
 
-    static private HashMap<String, User> usersList = new HashMap<>(); //TODO: replace with concurrentHashMap
-    static private ReentrantLock usersLock = new ReentrantLock();
+    static private ConcurrentHashMap<String, User> usersList = new ConcurrentHashMap<>();
 
     static private SimpleGraph relationsGraph = new SimpleGraph();
 
 
     static void addUser(String username, String password) throws WQRegisterInterface.UserAlreadyRegisteredException, WQRegisterInterface.InvalidPasswordException {
-        usersLock.lock();
-        if(usersList.containsKey(username)) {
-            usersLock.unlock();
+        if(usersList.containsKey(username))
             throw new WQRegisterInterface.UserAlreadyRegisteredException();
-        }
-        if(password == null || password.isBlank()){
-            usersLock.unlock();
+        if(password == null || password.isBlank())//isBlank() requires java 11
             throw new WQRegisterInterface.InvalidPasswordException();
-        }
+
         usersList.put(username, new User(username, password));
-        usersLock.unlock();
 
         relationsGraph.addNode();
     }
 
     static void logUser(String name, String password) throws UserNotFoundException, WQRegisterInterface.InvalidPasswordException, AlreadyLoggedException {
-        usersLock.lock();
         User user = usersList.get(name);
-        usersLock.unlock();
         if(user == null)
             throw new UserNotFoundException();
         if(user.notMatches(name, password))
@@ -53,9 +44,7 @@ class UserDB {
     }
 
     static void logoutUser(String name, String password) throws WQRegisterInterface.InvalidPasswordException, UserNotFoundException, NotLoggedException {
-        usersLock.lock();
         User user = usersList.get(name);
-        usersLock.unlock();
         if(user == null)
             throw new UserNotFoundException();
         if(user.notMatches(name, password))
@@ -69,51 +58,35 @@ class UserDB {
     }
 
     static void addFriendship(String nick1, String nick2) throws UserNotFoundException {
-        usersLock.lock();
         User user1 = usersList.get(nick1);
         User user2 = usersList.get(nick2);
-        usersLock.unlock();
 
         if(user1 == null || user2 == null)
             throw new UserNotFoundException();
 
-        relationsGraph.addArch(user1.getId(), user2.getId());
+        relationsGraph.addArch(user1, user2);
     }
 
     static String getFriends(String name) throws UserNotFoundException {
-        usersLock.lock();
         User friendlyUser = usersList.get(name);
-        usersLock.unlock();
 
         if (friendlyUser == null)
             throw new UserNotFoundException();
 
-        //very very bad, O(n) algorithm where n is user counter
-        //TODO: improve time consumption
-        int[] friends = relationsGraph.getLinkedNodes(friendlyUser.getId());
-        int i = 0;
-        //TODO: will not work until friends keep having some empty parts
-        LinkedList<String> friendList = new LinkedList<>();
-        for(User user: usersList.values()){
-            if(user.getId() == friends[i]){
-                friendList.add(user.name);
-                i++;
-            }
-        }
+
+        LinkedList<User> friends = relationsGraph.getLinkedNodes(friendlyUser);
         Gson gson = new Gson();
-        return gson.toJson(friendList);
+        return gson.toJson(friends);
     }
 
     static void challegeFriend(String challengerName, String challengedName) throws UserNotFoundException, NotFriendsException {
-        usersLock.lock();
         User challenger = usersList.get(challengerName);
         User challenged = usersList.get(challengedName);
-        usersLock.unlock();
 
         if(challenger == null || challenged == null)
             throw new UserNotFoundException();
 
-        if(relationsGraph.nodesAreNotLinked(challenger.getId(), challenged.getId()))
+        if(relationsGraph.nodesAreNotLinked(challenger, challenged))
             throw new NotFriendsException();
 
         //TODO: start challenge
@@ -121,20 +94,22 @@ class UserDB {
     }
 
     static int getScore(String name){
-        usersLock.lock();
         User user = usersList.get(name);
-        usersLock.unlock();
 
         return user.getScore();
     }
 
     static String getRanking(String name){
-        usersLock.lock();
         User user = usersList.get(name);
-        usersLock.unlock();
+        User[] friends = relationsGraph.getLinkedNodes(user).toArray(new User[0]); //get array for faster access
+        Arrays.sort(friends, Comparator.comparingInt(User::getScore));//sort by the score
+        String[] ranking = new String[friends.length]; //ranking with name and score
 
-        //TODO: return ranking
-        return null;
+        for(int i = 0; i < ranking.length; i++){
+            ranking[i] = friends[i].getName() + "\t" + friends[i].getScore();
+        }
+        Gson gson = new Gson();
+        return gson.toJson(ranking);
     }
 
 
@@ -162,6 +137,16 @@ class UserDB {
         //TODO: synchronized??
         int getScore() {
             return score;
+        }
+
+        String getName() {
+            return name;
+        }
+
+        void addToScore(int amount){
+            //TODO: can score be negative?
+            if(amount > 0)
+                score += amount;
         }
 
         boolean matches(String name, String password) {
@@ -195,80 +180,40 @@ class UserDB {
             }
             return super.equals(obj);
         }
-
-
     }
 
+
+    //a non-oriented graph implemented with an adjacencyList
+    //requires that user has an unique id to be used to access array location
     static class SimpleGraph{
-        private int currentNodes = 0;
-        private int maxNodes = 10;
-        private boolean[][] adjacencyMatrix = new boolean[maxNodes][maxNodes];
+        Vector<LinkedList<User>> adjacencyList = new Vector<>(); //i-sm element is the user with i as id
 
-        SimpleGraph(){
-            for(int i = 0; i < maxNodes; i++)
-                Arrays.fill(adjacencyMatrix[i], false);
+        //add a node to the graph
+        void addNode(){
+            adjacencyList.add(new LinkedList<>());
         }
 
-        //needs to be thread-safe
-        synchronized void addNode(){
-            currentNodes++;
-
-            //if short in size, expand array size
-            if(currentNodes > maxNodes){
-                maxNodes *= 2;
-                boolean[][] oldMatrix = adjacencyMatrix;
-                adjacencyMatrix = new boolean[maxNodes][maxNodes];
-                for(int i = 0; i < maxNodes; i++){
-                    for(int j = 0; j < maxNodes; j++){
-                        if(i < maxNodes / 2 && j < maxNodes / 2){
-                            adjacencyMatrix[i][j] = oldMatrix[i][j];
-                        }else {
-                            adjacencyMatrix[i][j] = false;
-                        }
-                    }
-                }
-            }
+        void addArch(User user1, User user2){
+            adjacencyList.get(user1.getId()).add(user2);
+            adjacencyList.get(user2.getId()).add(user1);
         }
 
-        synchronized void addArch(int i, int j){
-            adjacencyMatrix[i][j] = true;
-            adjacencyMatrix[j][i] = true;
+        boolean nodesAreLinked(User user1, User user2){
+            return adjacencyList.get(user1.getId()).contains(user2);
         }
 
-        synchronized int[] getLinkedNodes(int id) {
-            int[] nodes = new int[currentNodes];
-            int j = 0;
-            for(int i = 0; i < currentNodes; i++){
-                if(adjacencyMatrix[id][i]){
-                    nodes[j] = i;
-                    j++;
-                }
-            }
-            return nodes;
-            //TODO: reduce size of nodes
+        boolean nodesAreNotLinked(User user1, User user2){
+            return !nodesAreLinked(user1, user2);
         }
 
-        synchronized boolean nodesAreLinked(int i, int j){
-            return adjacencyMatrix[i][j];
+        //returns all the nodes linked to user
+        LinkedList<User> getLinkedNodes(User user){
+            return adjacencyList.get(user.getId());
         }
 
-        //doesn't need to be synchronized
-        boolean nodesAreNotLinked(int i, int j) {
-            return !nodesAreLinked(i, j);
-        }
 
-        @Override
-        public String toString() {
-            StringBuilder output = new StringBuilder();
-            for(int i = 0; i < maxNodes; i++){
-                for (int j = 0; j < maxNodes; j++){
-                    output.append(adjacencyMatrix[i][j]);
-                    output.append("\t");
-                }
-                output.append("\n");
-            }
-            return output.toString();
-        }
+
+
     }
 
     private static class UserNotFoundException extends Exception {
