@@ -13,24 +13,24 @@ import java.util.concurrent.atomic.AtomicInteger;
 //package private class, the class and the member can only be called by the Server components
 class UserDB {
 
-    static private ConcurrentHashMap<String, User> usersList = new ConcurrentHashMap<>();
+    static private ConcurrentHashMap<String, User> usersTable = new ConcurrentHashMap<>();
 
     static private SimpleGraph relationsGraph = new SimpleGraph();
 
 
     static void addUser(String username, String password) throws WQRegisterInterface.UserAlreadyRegisteredException, WQRegisterInterface.InvalidPasswordException {
-        if(usersList.containsKey(username))
+        if(usersTable.containsKey(username))
             throw new WQRegisterInterface.UserAlreadyRegisteredException();
         if(password == null || password.isBlank())//isBlank() requires java 11
             throw new WQRegisterInterface.InvalidPasswordException();
 
-        usersList.put(username, new User(username, password));
+        usersTable.put(username, new User(username, password));
 
         relationsGraph.addNode();
     }
 
     static void logUser(String name, String password) throws UserNotFoundException, WQRegisterInterface.InvalidPasswordException, AlreadyLoggedException {
-        User user = usersList.get(name);
+        User user = usersTable.get(name);
         if(user == null)
             throw new UserNotFoundException();
         if(user.notMatches(name, password))
@@ -44,7 +44,7 @@ class UserDB {
     }
 
     static void logoutUser(String name, String password) throws WQRegisterInterface.InvalidPasswordException, UserNotFoundException, NotLoggedException {
-        User user = usersList.get(name);
+        User user = usersTable.get(name);
         if(user == null)
             throw new UserNotFoundException();
         if(user.notMatches(name, password))
@@ -58,8 +58,8 @@ class UserDB {
     }
 
     static void addFriendship(String nick1, String nick2) throws UserNotFoundException {
-        User user1 = usersList.get(nick1);
-        User user2 = usersList.get(nick2);
+        User user1 = usersTable.get(nick1);
+        User user2 = usersTable.get(nick2);
 
         if(user1 == null || user2 == null)
             throw new UserNotFoundException();
@@ -68,7 +68,7 @@ class UserDB {
     }
 
     static String getFriends(String name) throws UserNotFoundException {
-        User friendlyUser = usersList.get(name);
+        User friendlyUser = usersTable.get(name);
 
         if (friendlyUser == null)
             throw new UserNotFoundException();
@@ -80,8 +80,8 @@ class UserDB {
     }
 
     static void challegeFriend(String challengerName, String challengedName) throws UserNotFoundException, NotFriendsException {
-        User challenger = usersList.get(challengerName);
-        User challenged = usersList.get(challengedName);
+        User challenger = usersTable.get(challengerName);
+        User challenged = usersTable.get(challengedName);
 
         if(challenger == null || challenged == null)
             throw new UserNotFoundException();
@@ -94,13 +94,13 @@ class UserDB {
     }
 
     static int getScore(String name){
-        User user = usersList.get(name);
+        User user = usersTable.get(name);
 
         return user.getScore();
     }
 
     static String getRanking(String name){
-        User user = usersList.get(name);
+        User user = usersTable.get(name);
         User[] friends = relationsGraph.getLinkedNodes(user).toArray(new User[0]); //get array for faster access
         Arrays.sort(friends, Comparator.comparingInt(User::getScore));//sort by the score
         String[] ranking = new String[friends.length]; //ranking with name and score
@@ -126,7 +126,7 @@ class UserDB {
         User(String name, String password){
             this.name = name;
             this.password = password;
-            id = count.incrementAndGet();
+            id = count.getAndIncrement();
         }
 
         int getId() {
@@ -212,7 +212,7 @@ class UserDB {
         }
     }
 
-    private static class UserNotFoundException extends Exception {
+    static class UserNotFoundException extends Exception {
     }
 
     private static class AlreadyLoggedException extends Exception {

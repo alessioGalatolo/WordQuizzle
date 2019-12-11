@@ -25,12 +25,11 @@ public class Main {
 
     public static void main(String[] args) {
 
-        userDBStub();
-
-
-
-
-
+        try {
+            userDBStub();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
 
 
         try {
@@ -125,7 +124,7 @@ public class Main {
 
 
     //method to test userDB
-    private static void userDBStub() {
+    private static void userDBStub() throws InterruptedException {
         ThreadPoolExecutor threadPool = (ThreadPoolExecutor) Executors.newFixedThreadPool(20);
 
         for(int i = 0; i < 1000; i++) {
@@ -134,6 +133,30 @@ public class Main {
                 try {
                     UserDB.addUser("User" + finalI, "Password" + finalI);
                 } catch (WQRegisterInterface.UserAlreadyRegisteredException | WQRegisterInterface.InvalidPasswordException e) {
+                    e.printStackTrace();
+                }
+            });
+        }
+
+        Thread.sleep(1000);
+
+        for(int i = 0; i < 1000; i++) {
+            int finalI1 = i;
+            threadPool.execute(() -> {
+                try {
+                    UserDB.addFriendship("User" + finalI1, "User" + (finalI1 % 100));
+                } catch (UserDB.UserNotFoundException e) {
+                    e.printStackTrace();
+                }
+            });
+        }
+
+        for(int i = 0; i < 10; i++) {
+            int finalI = i;
+            threadPool.execute(() -> {
+                try {
+                    System.out.println(UserDB.getFriends("User" + finalI));
+                } catch (UserDB.UserNotFoundException e) {
                     e.printStackTrace();
                 }
             });
