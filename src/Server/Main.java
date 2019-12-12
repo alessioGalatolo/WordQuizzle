@@ -1,10 +1,8 @@
 package Server;
 
-import Commons.WQRegisterInterface;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.net.ServerSocket;
+import java.net.*;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
@@ -14,18 +12,12 @@ import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Vector;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
 public class Main {
 
     public static void main(String[] args) {
-
-        userDBStub();
 
         try {
 
@@ -35,8 +27,12 @@ public class Main {
             Registry r = LocateRegistry.createRegistry(Consts.RMI_PORT);
             r.bind(Consts.WQ_STUB_NAME, wqRegister);
 
+            UDPServer udpServer = new UDPServer();
+            udpServer.start();
 
-            ThreadPoolExecutor threadPool = (ThreadPoolExecutor) Executors.newFixedThreadPool(Server.Consts.SERVER_THREADS);
+            ThreadPoolExecutor threadPool = (ThreadPoolExecutor) Executors.newFixedThreadPool(Consts.SERVER_THREADS);
+
+
 
             //try with resources
             try(ServerSocketChannel serverChannel = ServerSocketChannel.open();
@@ -44,12 +40,12 @@ public class Main {
 
                 //init server
                 ServerSocket serverSocket = serverChannel.socket(); //TODO: close?
-                InetSocketAddress address = new InetSocketAddress(Server.Consts.SOCKET_PORT); //local host
+                InetSocketAddress address = new InetSocketAddress(Server.Consts.TCP_PORT); //local host
                 serverSocket.bind(address); //binds address
                 serverChannel.configureBlocking(false);
                 serverChannel.register(selector, SelectionKey.OP_ACCEPT);
 
-                //TODO: no termination is provided
+                //TODO: no termination is provided (yet)
                 while (true) {
                     selector.select(); //blocking request
 
@@ -62,7 +58,6 @@ public class Main {
 
                                 ServerSocketChannel server = (ServerSocketChannel) currentKey.channel();
                                 SocketChannel clientSocketChannel = server.accept();
-                                System.out.println("Server has accepted connection from " + clientSocketChannel.getRemoteAddress());
                                 clientSocketChannel.configureBlocking(false);
                                 clientSocketChannel.register(selector, SelectionKey.OP_READ); //expecting a write from the client as the new operation
 
@@ -105,74 +100,10 @@ public class Main {
             }
 
             threadPool.shutdown();
-
+            udpServer.interrupt();
             UnicastRemoteObject.unexportObject(wqRegister, true);
         } catch (RemoteException | AlreadyBoundException e) {
             e.printStackTrace();
         }
-    }
-
-
-    //method to test userDB
-    private static void userDBStub()  {
-        ThreadPoolExecutor threadPool = (ThreadPoolExecutor) Executors.newFixedThreadPool(20);
-
-        for(int i = 0; i < 1000; i++) {
-            int finalI = i;
-            threadPool.execute(() -> {
-                try {
-                    UserDB.addUser("User" + finalI, "Password" + finalI);
-                } catch (WQRegisterInterface.UserAlreadyRegisteredException | WQRegisterInterface.InvalidPasswordException e) {
-                    e.printStackTrace();
-                }
-            });
-        }
-
-        for(int i = 0; i < 1000; i++) {
-            int finalI1 = i;
-            threadPool.execute(() -> {
-                try {
-                    UserDB.addFriendship("User" + finalI1, "User" + (finalI1 % 100));
-                } catch (UserDB.UserNotFoundException | UserDB.AlreadyFriendsException e) {
-                    e.printStackTrace();
-                }
-            });
-        }
-
-        for(int i = 0; i < 10; i++) {
-            int finalI = i;
-            threadPool.execute(() -> {
-                try {
-                    System.out.println(UserDB.getFriends("User" + finalI));
-                } catch (UserDB.UserNotFoundException e) {
-                    e.printStackTrace();
-                }
-            });
-        }
-
-
-        try {
-            UserDB.logUser("User1", "password1");
-        } catch (UserDB.UserNotFoundException | UserDB.AlreadyLoggedException | WQRegisterInterface.InvalidPasswordException e) {
-            e.printStackTrace();
-        }
-
-
-        try {
-            UserDB.logoutUser("User1");
-        } catch (UserDB.NotLoggedException | UserDB.UserNotFoundException e) {
-            e.printStackTrace();
-        }
-
-        try {
-            UserDB.logUser("User1", "Password1");
-        } catch (UserDB.UserNotFoundException | WQRegisterInterface.InvalidPasswordException | UserDB.AlreadyLoggedException e) {
-            e.printStackTrace();
-        }
-
-        System.out.println(UserDB.getScore("User1"));
-        System.out.println(UserDB.getRanking("User1"));
-
-        threadPool.shutdownNow();
     }
 }

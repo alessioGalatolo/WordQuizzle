@@ -1,12 +1,15 @@
 package Server;//class with most used constants
 
 public class Consts {
-    public static final int SOCKET_PORT = 6000;
-    public static final int SERVER_THREADS = 10;
+    //TODO: move unnecessary variables
+    public static final int TCP_PORT = 6000;
     public static final int RMI_PORT = 7000;
+    public static final int UDP_PORT = 8000;
+    public static final int SERVER_THREADS = 10;
     public static final String WQ_STUB_NAME = "My word quizzle name";
     public static final int ARRAY_INIT_SIZE = 1024;
     public static final int INT_SIZE = 4;
+    public static final int UDP_TIMEOUT = 1000;
 
     //requests from client
     public static final String REQUEST_LOGIN = "login";
@@ -26,4 +29,5 @@ public class Consts {
     public static final String RESPONSE_ALREADY_FRIENDS = "The two users are already friends";
     public static final String RESPONSE_NOT_FRIENDS = "The two users are not friends";
     public static final String RESPONSE_UNKNOWN_REQUEST = "The request is unknown";
+    public static final String RESPONSE_ILLEGAL_REQUEST = "Illegal operation was requested";
 }

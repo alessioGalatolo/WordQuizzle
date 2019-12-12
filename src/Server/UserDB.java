@@ -3,6 +3,7 @@ package Server;
 import Commons.WQRegisterInterface;
 import com.google.gson.Gson;
 
+import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedList;
@@ -55,23 +56,28 @@ class UserDB {
         user.logout();
     }
 
-    static void addFriendship(String nick1, String nick2) throws UserNotFoundException, AlreadyFriendsException {
+    static void addFriendship(String nick1, String nick2) throws UserNotFoundException, AlreadyFriendsException, NotLoggedException {
         User user1 = usersTable.get(nick1);
         User user2 = usersTable.get(nick2);
 
         if(user1 == null || user2 == null)
             throw new UserNotFoundException();
+        if(user1.isNotLogged())
+            throw new NotLoggedException();
         if(relationsGraph.nodesAreLinked(user1, user2))
             throw new AlreadyFriendsException();
 
         relationsGraph.addArch(user1, user2);
     }
 
-    static String getFriends(String name) throws UserNotFoundException {
+    //TODO: a non logged user should not be able to ask this question
+    static String getFriends(String name) throws UserNotFoundException, NotLoggedException {
         User friendlyUser = usersTable.get(name);
 
         if (friendlyUser == null)
             throw new UserNotFoundException();
+        if(friendlyUser.isNotLogged())
+            throw new NotLoggedException();
 
 
         LinkedList<User> friends = relationsGraph.getLinkedNodes(friendlyUser);
@@ -79,7 +85,7 @@ class UserDB {
         return gson.toJson(friends);
     }
 
-    static void challengeFriend(String challengerName, String challengedName) throws UserNotFoundException, NotFriendsException {
+    static void challengeFriend(String challengerName, String challengedName) throws UserNotFoundException, NotFriendsException, NotLoggedException {
         User challenger = usersTable.get(challengerName);
         User challenged = usersTable.get(challengedName);
 
@@ -88,6 +94,9 @@ class UserDB {
 
         if(relationsGraph.nodesAreNotLinked(challenger, challenged))
             throw new NotFriendsException();
+
+        if(challenger.isNotLogged() || challenged.isNotLogged())
+            throw new NotLoggedException();
 
         //TODO: start challenge
 

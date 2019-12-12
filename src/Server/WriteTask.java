@@ -25,6 +25,7 @@ public class WriteTask implements Runnable {
         try {
 
             SocketChannel socketChannel = (SocketChannel) selectionKey.channel();
+            //socketChannel.getRemoteAddress();
 
             //will contain the response to be written to the client at the end of the request
             ByteBuffer byteBuffer;
@@ -42,76 +43,58 @@ public class WriteTask implements Runnable {
 
                 String response;
 
-                switch (messageFragments[0].toLowerCase()) {
-                    case Consts.REQUEST_LOGIN:
-                        try {
+
+                try {
+                    switch (messageFragments[0].toLowerCase()) {
+                        case Consts.REQUEST_LOGIN:
                             UserDB.logUser(messageFragments[1], messageFragments[2]);
                             response = Consts.RESPONSE_OK;
-                        } catch (UserDB.UserNotFoundException e) {
-                            response = Consts.RESPONSE_USER_NOT_FOUND;
-                        } catch (WQRegisterInterface.InvalidPasswordException e) {
-                            response = Consts.RESPONSE_WRONG_PASSWORD;
-                        } catch (UserDB.AlreadyLoggedException e) {
-                            response = Consts.RESPONSE_ALREADY_LOGGED;
-                        }
-                        break;
+                            break;
 
-                    case Consts.REQUEST_LOGOUT:
-                        try {
+                        case Consts.REQUEST_LOGOUT:
                             UserDB.logoutUser(messageFragments[1]);
                             response = Consts.RESPONSE_OK;
-                        } catch (UserDB.UserNotFoundException e) {
-                            response = Consts.RESPONSE_USER_NOT_FOUND;
-                        } catch (UserDB.NotLoggedException e) {
-                            response = Consts.RESPONSE_NOT_LOGGED;
-                        }
-                        break;
+                            break;
 
-                    case Consts.REQUEST_ADD_FRIEND:
-                        try {
+                        case Consts.REQUEST_ADD_FRIEND:
                             UserDB.addFriendship(messageFragments[1], messageFragments[2]);
                             response = Consts.RESPONSE_OK;
-                        } catch (UserDB.UserNotFoundException e) {
-                            response = Consts.RESPONSE_USER_NOT_FOUND; //TODO: check if user1 or user2
-                        } catch (UserDB.AlreadyFriendsException e) {
-                            response = Consts.RESPONSE_ALREADY_FRIENDS;
-                        }
+//                                response = Consts.RESPONSE_USER_NOT_FOUND; //TODO: check if user1 or user2
 
-                        break;
+                            break;
 
-                    case Consts.REQUEST_FRIEND_LIST:
-                        try {
+                        case Consts.REQUEST_FRIEND_LIST:
                             response = UserDB.getFriends(messageFragments[1]);
-                        } catch (UserDB.UserNotFoundException e) {
-                            response = Consts.RESPONSE_USER_NOT_FOUND;
-                        }
+                            break;
 
-                        break;
+                        case Consts.REQUEST_CHALLENGE:
+                            response = Consts.RESPONSE_ILLEGAL_REQUEST;
+                            break;
 
-                    case Consts.REQUEST_CHALLENGE:
+                        case Consts.REQUEST_SCORE:
+                            response = String.valueOf(UserDB.getScore(messageFragments[1]));
+                            break;
 
-                        try {
-                            UserDB.challengeFriend(messageFragments[1], messageFragments[2]);
-                            response = Consts.RESPONSE_OK;
-                        } catch (UserDB.UserNotFoundException e) {
-                            response = Consts.RESPONSE_USER_NOT_FOUND;
-                        } catch (UserDB.NotFriendsException e) {
-                            response = Consts.RESPONSE_NOT_FRIENDS;
-                        }
+                        case Consts.REQUEST_RANKINGS:
+                            response = UserDB.getRanking(messageFragments[1]);
+                            break;
 
-                        break;
+                        default:
+                            response = Consts.RESPONSE_UNKNOWN_REQUEST;
+                            break;
+                    }
 
-                    case Consts.REQUEST_SCORE:
-                        response = String.valueOf(UserDB.getScore(messageFragments[1]));
-                        break;
-
-                    case Consts.REQUEST_RANKINGS:
-                        response = UserDB.getRanking(messageFragments[1]);
-                        break;
-
-                    default:
-                        response = Consts.RESPONSE_UNKNOWN_REQUEST;
-                        break;
+                //set error response in case of exception
+                }catch (UserDB.UserNotFoundException e){
+                    response = Consts.RESPONSE_USER_NOT_FOUND;
+                } catch (WQRegisterInterface.InvalidPasswordException e) {
+                    response = Consts.RESPONSE_WRONG_PASSWORD;
+                } catch (UserDB.AlreadyLoggedException e) {
+                    response = Consts.RESPONSE_ALREADY_LOGGED;
+                } catch (UserDB.AlreadyFriendsException e) {
+                    response = Consts.RESPONSE_ALREADY_FRIENDS;
+                } catch (UserDB.NotLoggedException e) {
+                    response = Consts.RESPONSE_NOT_LOGGED;
                 }
 
                 byteBuffer = ByteBuffer.wrap(response.getBytes(StandardCharsets.UTF_8));
