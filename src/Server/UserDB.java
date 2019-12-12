@@ -43,12 +43,10 @@ class UserDB {
         user.login();
     }
 
-    static void logoutUser(String name, String password) throws WQRegisterInterface.InvalidPasswordException, UserNotFoundException, NotLoggedException {
+    static void logoutUser(String name) throws UserNotFoundException, NotLoggedException {
         User user = usersTable.get(name);
         if(user == null)
             throw new UserNotFoundException();
-        if(user.notMatches(name, password))
-            throw new WQRegisterInterface.InvalidPasswordException();
 
         //might be useless
 //        if(user.isNotLogged())
@@ -57,12 +55,14 @@ class UserDB {
         user.logout();
     }
 
-    static void addFriendship(String nick1, String nick2) throws UserNotFoundException {
+    static void addFriendship(String nick1, String nick2) throws UserNotFoundException, AlreadyFriendsException {
         User user1 = usersTable.get(nick1);
         User user2 = usersTable.get(nick2);
 
         if(user1 == null || user2 == null)
             throw new UserNotFoundException();
+        if(relationsGraph.nodesAreLinked(user1, user2))
+            throw new AlreadyFriendsException();
 
         relationsGraph.addArch(user1, user2);
     }
@@ -79,7 +79,7 @@ class UserDB {
         return gson.toJson(friends);
     }
 
-    static void challegeFriend(String challengerName, String challengedName) throws UserNotFoundException, NotFriendsException {
+    static void challengeFriend(String challengerName, String challengedName) throws UserNotFoundException, NotFriendsException {
         User challenger = usersTable.get(challengerName);
         User challenged = usersTable.get(challengedName);
 
@@ -215,12 +215,15 @@ class UserDB {
     static class UserNotFoundException extends Exception {
     }
 
-    private static class AlreadyLoggedException extends Exception {
+    static class AlreadyLoggedException extends Exception {
     }
 
-    private static class NotLoggedException extends Exception {
+    static class NotLoggedException extends Exception {
     }
 
-    private static class NotFriendsException extends Exception{
+    static class NotFriendsException extends Exception{
+    }
+
+    static class AlreadyFriendsException extends Exception {
     }
 }

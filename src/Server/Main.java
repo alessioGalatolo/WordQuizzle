@@ -25,12 +25,7 @@ public class Main {
 
     public static void main(String[] args) {
 
-        try {
-            userDBStub();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-
+        userDBStub();
 
         try {
 
@@ -40,7 +35,6 @@ public class Main {
             Registry r = LocateRegistry.createRegistry(Consts.RMI_PORT);
             r.bind(Consts.WQ_STUB_NAME, wqRegister);
 
-            Vector<String> loggedUsers = new Vector<>();
 
             ThreadPoolExecutor threadPool = (ThreadPoolExecutor) Executors.newFixedThreadPool(Server.Consts.SERVER_THREADS);
 
@@ -59,13 +53,8 @@ public class Main {
                 while (true) {
                     selector.select(); //blocking request
 
-                    Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
-
                     //check every ready key.
-                    while (iterator.hasNext()){
-
-                        SelectionKey currentKey = iterator.next();
-                        iterator.remove();
+                    for(SelectionKey currentKey: selector.selectedKeys()){
 
                         try {
                             if (currentKey.isAcceptable()) {
@@ -94,8 +83,7 @@ public class Main {
                                     if a byte[] is found -> allocates a byteBuffer and tries to write it all. if an incomplete write happens, the remaining buffer is stored as an attachment
                                     if a ByteBuffer is found -> an incomplete write happened, tries to complete it.
                                  */
-
-                                threadPool.execute(new WriteTask(currentKey, loggedUsers));
+                                threadPool.execute(new WriteTask(currentKey));
 
                             } else {
                                 System.err.println("Key has not been recognised");
@@ -109,6 +97,8 @@ public class Main {
                             }
                         }
                     }
+
+                    selector.selectedKeys().clear();
                 }
             } catch (IOException e) {
                 e.printStackTrace();
@@ -124,7 +114,7 @@ public class Main {
 
 
     //method to test userDB
-    private static void userDBStub() throws InterruptedException {
+    private static void userDBStub()  {
         ThreadPoolExecutor threadPool = (ThreadPoolExecutor) Executors.newFixedThreadPool(20);
 
         for(int i = 0; i < 1000; i++) {
@@ -138,14 +128,12 @@ public class Main {
             });
         }
 
-        Thread.sleep(1000);
-
         for(int i = 0; i < 1000; i++) {
             int finalI1 = i;
             threadPool.execute(() -> {
                 try {
                     UserDB.addFriendship("User" + finalI1, "User" + (finalI1 % 100));
-                } catch (UserDB.UserNotFoundException e) {
+                } catch (UserDB.UserNotFoundException | UserDB.AlreadyFriendsException e) {
                     e.printStackTrace();
                 }
             });
@@ -162,6 +150,29 @@ public class Main {
             });
         }
 
-        //TODO: keep test
+
+        try {
+            UserDB.logUser("User1", "password1");
+        } catch (UserDB.UserNotFoundException | UserDB.AlreadyLoggedException | WQRegisterInterface.InvalidPasswordException e) {
+            e.printStackTrace();
+        }
+
+
+        try {
+            UserDB.logoutUser("User1");
+        } catch (UserDB.NotLoggedException | UserDB.UserNotFoundException e) {
+            e.printStackTrace();
+        }
+
+        try {
+            UserDB.logUser("User1", "Password1");
+        } catch (UserDB.UserNotFoundException | WQRegisterInterface.InvalidPasswordException | UserDB.AlreadyLoggedException e) {
+            e.printStackTrace();
+        }
+
+        System.out.println(UserDB.getScore("User1"));
+        System.out.println(UserDB.getRanking("User1"));
+
+        threadPool.shutdownNow();
     }
 }
