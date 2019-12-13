@@ -33,6 +33,17 @@ public class UDPServer extends Thread {
                         String name1 = messageFragments[1];
                         String name2 = messageFragments[2];
 
+                        try {
+                            UserDB.challengeFriend(name1, name2, datagramSocket);
+                        } catch (UserDB.UserNotFoundException e) {
+                            e.printStackTrace();
+                        } catch (UserDB.NotFriendsException e) {
+                            e.printStackTrace();
+                        } catch (UserDB.NotLoggedException e) {
+                            e.printStackTrace();
+                        } catch (UserDB.SameUserException e) {
+                            e.printStackTrace();
+                        }
 
 //                        DatagramPacket response = new DatagramPacket(, request.getAddress(), request.getPort());
 //                        datagramSocket.send(response);

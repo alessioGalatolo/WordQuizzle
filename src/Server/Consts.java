@@ -30,4 +30,5 @@ public class Consts {
     public static final String RESPONSE_NOT_FRIENDS = "The two users are not friends";
     public static final String RESPONSE_UNKNOWN_REQUEST = "The request is unknown";
     public static final String RESPONSE_ILLEGAL_REQUEST = "Illegal operation was requested";
+    public static final String RESPONSE_SAME_USER = "The two user are the same";
 }

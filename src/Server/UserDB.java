@@ -3,7 +3,12 @@ package Server;
 import Commons.WQRegisterInterface;
 import com.google.gson.Gson;
 
+import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedList;
@@ -30,7 +35,7 @@ class UserDB {
         relationsGraph.addNode();
     }
 
-    static void logUser(String name, String password) throws UserNotFoundException, WQRegisterInterface.InvalidPasswordException, AlreadyLoggedException {
+    static void logUser(String name, String password, InetAddress address, int UDPPort) throws UserNotFoundException, WQRegisterInterface.InvalidPasswordException, AlreadyLoggedException {
         User user = usersTable.get(name);
         if(user == null)
             throw new UserNotFoundException();
@@ -41,7 +46,11 @@ class UserDB {
 //        if(user.isLogged())
 //            throw new AlreadyLoggedException();
 
-        user.login();
+        user.login(address, UDPPort);
+    }
+
+    static void logUser(String name, String password, InetAddress address) throws UserNotFoundException, WQRegisterInterface.InvalidPasswordException, AlreadyLoggedException {
+        logUser(name, password, address, Consts.UDP_PORT);
     }
 
     static void logoutUser(String name) throws UserNotFoundException, NotLoggedException {
@@ -56,7 +65,11 @@ class UserDB {
         user.logout();
     }
 
-    static void addFriendship(String nick1, String nick2) throws UserNotFoundException, AlreadyFriendsException, NotLoggedException {
+
+    static void addFriendship(String nick1, String nick2) throws UserNotFoundException, AlreadyFriendsException, NotLoggedException, SameUserException {
+        if(nick1.equals(nick2))
+            throw new SameUserException();
+
         User user1 = usersTable.get(nick1);
         User user2 = usersTable.get(nick2);
 
@@ -85,7 +98,10 @@ class UserDB {
         return gson.toJson(friends);
     }
 
-    static void challengeFriend(String challengerName, String challengedName) throws UserNotFoundException, NotFriendsException, NotLoggedException {
+    static void challengeFriend(String challengerName, String challengedName, DatagramSocket datagramSocket) throws UserNotFoundException, NotFriendsException, NotLoggedException, SameUserException {
+        if(challengedName.equals(challengerName))
+            throw new SameUserException();
+
         User challenger = usersTable.get(challengerName);
         User challenged = usersTable.get(challengedName);
 
@@ -97,6 +113,19 @@ class UserDB {
 
         if(challenger.isNotLogged() || challenged.isNotLogged())
             throw new NotLoggedException();
+
+        byte[] challengeRequest = (Consts.REQUEST_CHALLENGE + challengerName).getBytes(StandardCharsets.UTF_8);
+        DatagramPacket packet = new DatagramPacket(challengeRequest, challengeRequest.length, challenged.getAddress(), challenged.getUDPPort());
+
+        try {
+            datagramSocket.send(packet);
+
+            //wait for ok response
+            datagramSocket.receive(packet);
+            
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
         //TODO: start challenge
 
@@ -125,12 +154,14 @@ class UserDB {
     static class User{
         private String name;
         private String password;
-        private boolean logged = false;
+        private InetAddress loginAddress = null;
+        private int UDPPort;
         private int score = 0;
         private int id;
 
         //counter is shared between multiple threads and instances
         private static final AtomicInteger count = new AtomicInteger(0); //every user has its id assigned at constructor time
+
 
         User(String name, String password){
             this.name = name;
@@ -152,6 +183,14 @@ class UserDB {
             return name;
         }
 
+        InetAddress getAddress() {
+            return loginAddress;
+        }
+
+        int getUDPPort() {
+            return UDPPort;
+        }
+
         void addToScore(int amount){
             //TODO: can score be negative?
             if(amount > 0)
@@ -166,20 +205,22 @@ class UserDB {
             return !matches(name, password);
         }
 
-        void login() {
-            logged = true;
+        void login(InetAddress address, int UDPPort) {
+            loginAddress = address;
+            this.UDPPort = UDPPort;
         }
 
         void logout() {
-            logged = false;
+            loginAddress = null;
+            UDPPort = 0;
         }
 
         boolean isLogged() {
-            return logged;
+            return loginAddress != null;
         }
 
         boolean isNotLogged() {
-            return !logged;
+            return loginAddress == null;
         }
 
         @Override
@@ -234,5 +275,8 @@ class UserDB {
     }
 
     static class AlreadyFriendsException extends Exception {
+    }
+
+     static class SameUserException extends Exception{
     }
 }

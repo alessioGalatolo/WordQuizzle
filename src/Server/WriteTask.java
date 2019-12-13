@@ -3,6 +3,7 @@ package Server;
 import Commons.WQRegisterInterface;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
@@ -47,7 +48,13 @@ public class WriteTask implements Runnable {
                 try {
                     switch (messageFragments[0].toLowerCase()) {
                         case Consts.REQUEST_LOGIN:
-                            UserDB.logUser(messageFragments[1], messageFragments[2]);
+                            if(messageFragments.length > 3)
+                                UserDB.logUser(messageFragments[1], messageFragments[2],
+                                        ((InetSocketAddress) socketChannel.getRemoteAddress()).getAddress(),
+                                        Integer.parseInt(messageFragments[3]));
+                            else
+                                UserDB.logUser(messageFragments[1], messageFragments[2], ((InetSocketAddress) socketChannel.getRemoteAddress()).getAddress());
+
                             response = Consts.RESPONSE_OK;
                             break;
 
@@ -95,6 +102,8 @@ public class WriteTask implements Runnable {
                     response = Consts.RESPONSE_ALREADY_FRIENDS;
                 } catch (UserDB.NotLoggedException e) {
                     response = Consts.RESPONSE_NOT_LOGGED;
+                } catch (UserDB.SameUserException e) {
+                    response = Consts.RESPONSE_SAME_USER;
                 }
 
                 byteBuffer = ByteBuffer.wrap(response.getBytes(StandardCharsets.UTF_8));
