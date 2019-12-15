@@ -4,10 +4,7 @@ import Commons.WQRegisterInterface;
 import com.google.gson.Gson;
 
 import java.io.IOException;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
+import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -114,15 +111,29 @@ class UserDB {
         if(challenger.isNotLogged() || challenged.isNotLogged())
             throw new NotLoggedException();
 
+        //send challenge request to the other user
         byte[] challengeRequest = (Consts.REQUEST_CHALLENGE + challengerName).getBytes(StandardCharsets.UTF_8);
         DatagramPacket packet = new DatagramPacket(challengeRequest, challengeRequest.length, challenged.getAddress(), challenged.getUDPPort());
 
         try {
             datagramSocket.send(packet);
 
+
             //wait for ok response
-            datagramSocket.receive(packet);
-            
+            try {
+                datagramSocket.receive(packet);
+                //TODO: check response
+
+                
+
+            }catch (SocketTimeoutException e){
+                //no response
+                byte[] errorMessage = Consts.RESPONSE_CHALLENGE_REFUSED.getBytes(StandardCharsets.UTF_8);
+                packet = new DatagramPacket(errorMessage, errorMessage.length, challenger.getAddress(), challenger.getUDPPort());
+
+                datagramSocket.send(packet);
+                //end of communication
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }

@@ -31,4 +31,5 @@ public class Consts {
     public static final String RESPONSE_UNKNOWN_REQUEST = "The request is unknown";
     public static final String RESPONSE_ILLEGAL_REQUEST = "Illegal operation was requested";
     public static final String RESPONSE_SAME_USER = "The two user are the same";
+    public static final String RESPONSE_CHALLENGE_REFUSED = "The user challenged has not accepted within the timeout";
 }
