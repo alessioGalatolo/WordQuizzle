@@ -17,9 +17,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 class UserDB {
 
     static private ConcurrentHashMap<String, User> usersTable = new ConcurrentHashMap<>();
-
     static private SimpleGraph relationsGraph = new SimpleGraph();
 
+
+    //TODO: add save to file
 
     static void addUser(String username, String password) throws WQRegisterInterface.UserAlreadyRegisteredException, WQRegisterInterface.InvalidPasswordException {
         if(usersTable.containsKey(username))
@@ -112,7 +113,7 @@ class UserDB {
             throw new NotLoggedException();
 
         //send challenge request to the other user
-        byte[] challengeRequest = (Consts.REQUEST_CHALLENGE + challengerName).getBytes(StandardCharsets.UTF_8);
+        byte[] challengeRequest = (Consts.REQUEST_CHALLENGE + " " + challengerName).getBytes(StandardCharsets.UTF_8); //TODO: check correct spacing
         DatagramPacket packet = new DatagramPacket(challengeRequest, challengeRequest.length, challenged.getAddress(), challenged.getUDPPort());
 
         try {
@@ -124,7 +125,8 @@ class UserDB {
                 datagramSocket.receive(packet);
                 //TODO: check response
 
-                
+                //TODO: assign matchId and send confirmation to both player
+
 
             }catch (SocketTimeoutException e){
                 //no response
@@ -171,13 +173,13 @@ class UserDB {
         private int id;
 
         //counter is shared between multiple threads and instances
-        private static final AtomicInteger count = new AtomicInteger(0); //every user has its id assigned at constructor time
+        private static final AtomicInteger idCounter = new AtomicInteger(0); //every user has its id assigned at constructor time
 
 
         User(String name, String password){
             this.name = name;
             this.password = password;
-            id = count.getAndIncrement();
+            id = idCounter.getAndIncrement();
         }
 
         int getId() {

@@ -26,7 +26,7 @@ public class UDPServer extends Thread {
                     datagramSocket.receive(request);
 
                     //TODO: check message validity
-                    String[] messageFragments = new String(buffer, StandardCharsets.UTF_8).split("");
+                    String[] messageFragments = new String(buffer, StandardCharsets.UTF_8).split(" ");
                     if(!messageFragments[0].equals(Consts.REQUEST_CHALLENGE)){
                         sendErrorMessage(datagramSocket, request.getAddress(), request.getPort());
                     }else{

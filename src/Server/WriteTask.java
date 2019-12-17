@@ -45,6 +45,7 @@ public class WriteTask implements Runnable {
                 String response;
 
 
+                //TODO: move actions taken from write task to read task
                 try {
                     switch (messageFragments[0].toLowerCase()) {
                         case Consts.REQUEST_LOGIN:
@@ -84,6 +85,15 @@ public class WriteTask implements Runnable {
 
                         case Consts.REQUEST_RANKINGS:
                             response = UserDB.getRanking(messageFragments[1]);
+                            break;
+
+                        case Consts.REQUEST_READY_FOR_CHALLENGE:
+                            //client is ready for a match
+                            int matchId = Integer.parseInt(messageFragments[1]);
+
+
+                            //TODO: check usefulness
+                            response = Consts.RESPONSE_OK;
                             break;
 
                         default:

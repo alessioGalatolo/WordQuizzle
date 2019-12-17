@@ -10,6 +10,7 @@ public class Consts {
     public static final int ARRAY_INIT_SIZE = 1024;
     public static final int INT_SIZE = 4;
     public static final int UDP_TIMEOUT = 1000;
+    public static final int ITALIAN_WORD_MAX_LENGTH = 29; //https://www.focus.it/cultura/curiosita/qual-e-la-parola-piu-lunga-della-lingua-italiana
 
     //requests from client
     public static final String REQUEST_LOGIN = "login";
@@ -19,6 +20,7 @@ public class Consts {
     public static final String REQUEST_CHALLENGE = "sfida";
     public static final String REQUEST_RANKINGS = "mostra_classifica";
     public static final String REQUEST_SCORE = "mostra_punteggio";
+    public static final String REQUEST_READY_FOR_CHALLENGE = "220_Ready_for_challenge"; //client has been challenged or has challenged someone and it is ready for the match
 
     //responses from server
     public static final String RESPONSE_OK = "Ok";
@@ -32,4 +34,5 @@ public class Consts {
     public static final String RESPONSE_ILLEGAL_REQUEST = "Illegal operation was requested";
     public static final String RESPONSE_SAME_USER = "The two user are the same";
     public static final String RESPONSE_CHALLENGE_REFUSED = "The user challenged has not accepted within the timeout";
+    public static final String DICTIONARY_FILENAME = "dictionary";
 }
