@@ -126,7 +126,7 @@ class UserDB {
                 //TODO: check response
 
                 //TODO: assign matchId and send confirmation to both player
-
+                //TODO: create challenge
 
             }catch (SocketTimeoutException e){
                 //no response
@@ -140,7 +140,6 @@ class UserDB {
             e.printStackTrace();
         }
 
-        //TODO: start challenge
 
     }
 
