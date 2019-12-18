@@ -5,8 +5,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.GregorianCalendar;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
@@ -14,18 +12,28 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.lang.Math.abs;
 
+//TODO: check thread-safety
 class ChallengeHandler {
 
-    private String[] dictionary;
-    private ConcurrentHashMap<Integer, Challenge> activeChallenges = new ConcurrentHashMap<>();
+    private static ChallengeHandler singleInstance = null;
 
+    private static String[] dictionary = null;
+    private static ConcurrentHashMap<Integer, Challenge> activeChallenges = new ConcurrentHashMap<>();
+    private static ConcurrentHashMap<Integer, Challenge> pastChallenges = new ConcurrentHashMap<>();
 
-    ChallengeHandler(){
+    static ChallengeHandler getInstance(){
+        if(singleInstance == null){
+            singleInstance = new ChallengeHandler();
+        }
+        return singleInstance;
+    }
+
+    private ChallengeHandler(){
         this(Consts.DICTIONARY_FILENAME);
     }
 
     //initialize the dictionary from file
-    ChallengeHandler(String filename){
+    private ChallengeHandler(String filename){
         try {
             FileChannel inChannel = FileChannel.open(Paths.get(filename)); //file has a word per line
             int dictionaryIndex = 0;
@@ -90,15 +98,17 @@ class ChallengeHandler {
         }
     }
 
-    void startChallenge(int challengeId){
-        Challenge challenge = activeChallenges.get(challengeId);
+    String getNextWord(int challengeId, String user){
+        return activeChallenges.get(challengeId).getNextWord(user);
         //TODO: start challenge
     }
 
-
-    String[] getDictionary() {
-        return dictionary;
+    int createChallenge(String user1, String user2){
+        Challenge newChallenge = new Challenge(user1, user2, dictionary);
+        activeChallenges.put(newChallenge.getId(), newChallenge);
+        return newChallenge.getId();
     }
+
 
     static class Challenge{
         //counter is shared between multiple threads and instances
@@ -106,10 +116,14 @@ class ChallengeHandler {
         private int id;
         private String user1;
         private String user2;
+        private int user1Index = 0;
+        private int user2Index = 0;
         private String[] selectedWords = new String[Consts.CHALLENGE_WORDS_TO_MATCH]; //contains selected words
         private static Random random = new Random(GregorianCalendar.getInstance().getTimeInMillis());
 
-        Challenge(String[] dictionary){
+        Challenge(String user1, String user2, String[] dictionary){
+            this.user1 = user1;
+            this.user2 = user2;
             id = idCounter.getAndIncrement();
 
             for(int i = 0; i < selectedWords.length; i++){
@@ -117,6 +131,20 @@ class ChallengeHandler {
             }
         }
 
+        int getId() {
+            return id;
+        }
+
+
+        //TODO: add time check
+        String getNextWord(String user) {
+            if(user.equals(user1))
+                return selectedWords[user1Index++];
+            else if(user.equals(user2))
+                return selectedWords[user2Index++];
+            return null; //no username match
+            //TODO: throw exception
+        }
     }
 
 }

@@ -23,6 +23,7 @@ public class Consts {
     public static final String REQUEST_RANKINGS = "mostra_classifica";
     public static final String REQUEST_SCORE = "mostra_punteggio";
     public static final String REQUEST_READY_FOR_CHALLENGE = "220_Ready_for_challenge"; //client has been challenged or has challenged someone and it is ready for the match
+    public static final String REQUEST_NEXT_WORD = "next_word";
 
     //responses from server
     public static final String RESPONSE_OK = "Ok";

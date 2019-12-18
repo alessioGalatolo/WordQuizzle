@@ -87,13 +87,16 @@ public class WriteTask implements Runnable {
                             response = UserDB.getRanking(messageFragments[1]);
                             break;
 
+
+                        case Consts.REQUEST_NEXT_WORD:
+                            //Check correctness of translated word, then send new word
+
                         case Consts.REQUEST_READY_FOR_CHALLENGE:
                             //client is ready for a match
                             int matchId = Integer.parseInt(messageFragments[1]);
+                            String user = messageFragments[2];
+                            response = ChallengeHandler.getInstance().getNextWord(matchId, user);
 
-
-                            //TODO: check usefulness
-                            response = Consts.RESPONSE_OK;
                             break;
 
                         default:

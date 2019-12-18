@@ -126,7 +126,8 @@ class UserDB {
                 //TODO: check response
 
                 //TODO: assign matchId and send confirmation to both player
-                //TODO: create challenge
+                int matchId = ChallengeHandler.getInstance().createChallenge(challengerName, challengedName);
+                //TODO: add matchId to both player list of challenges
 
             }catch (SocketTimeoutException e){
                 //no response
