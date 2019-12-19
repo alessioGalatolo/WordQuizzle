@@ -1,14 +1,12 @@
 package Server;
 
 import Commons.WQRegisterInterface;
-
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
-import java.util.Vector;
 
 public class WriteTask implements Runnable {
 
@@ -90,6 +88,9 @@ public class WriteTask implements Runnable {
 
                         case Consts.REQUEST_NEXT_WORD:
                             //Check correctness of translated word, then send new word
+                            String translatedWord = messageFragments[3];
+                            ChallengeHandler.getInstance().checkTranslatedWord(Integer.parseInt(messageFragments[1]), messageFragments[2], translatedWord);
+
 
                         case Consts.REQUEST_READY_FOR_CHALLENGE:
                             //client is ready for a match

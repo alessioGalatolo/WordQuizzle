@@ -1,6 +1,13 @@
 package Server;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
@@ -109,6 +116,41 @@ class ChallengeHandler {
         return newChallenge.getId();
     }
 
+    void checkTranslatedWord(int matchId, String user, String translatedWord) {
+        String originalWord = activeChallenges.get(matchId).getLastWord(user);
+        if(wellTranslated(originalWord, translatedWord)){
+            //....
+        }
+    }
+
+    private boolean wellTranslated(String originalWord, String translatedWord) {
+        try {
+            URL url = new URL(Consts.TRANSLATION_URL_BASE + originalWord + Consts.TRANSLATION_URL_TRAIL);
+            try(var inputStream = new BufferedReader(new InputStreamReader(url.openStream()))){
+                StringBuilder stringBuilder = new StringBuilder();
+                Gson gson = new Gson();
+                String line;
+
+                while((line = inputStream.readLine()) != null){
+                    stringBuilder.append(line);
+                }
+                JsonObject jsonObject = gson.fromJson(stringBuilder.toString(), JsonObject.class);
+
+                //TODO: change score based on levenshtein distance
+                return jsonObject.get("responseData").getAsJsonObject().get("translatedText").getAsString().toLowerCase().equals(translatedWord.toLowerCase());
+
+
+
+            }catch (IOException e){
+                e.printStackTrace();
+            }
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+        }
+
+        return false;
+    }
+
 
     static class Challenge{
         //counter is shared between multiple threads and instances
@@ -142,6 +184,15 @@ class ChallengeHandler {
                 return selectedWords[user1Index++];
             else if(user.equals(user2))
                 return selectedWords[user2Index++];
+            return null; //no username match
+            //TODO: throw exception
+        }
+
+        String getLastWord(String user) {
+            if(user.equals(user1))
+                return selectedWords[user1Index - 1];
+            else if(user.equals(user2))
+                return selectedWords[user2Index - 1];
             return null; //no username match
             //TODO: throw exception
         }

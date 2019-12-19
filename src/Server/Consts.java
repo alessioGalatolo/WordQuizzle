@@ -13,6 +13,8 @@ public class Consts {
     public static final String DICTIONARY_FILENAME = "long_dictionary";
     public static final int CHALLENGE_WORDS_TO_MATCH = 6;
     public static final int ITALIAN_WORD_MAX_LENGTH = 29; //https://www.focus.it/cultura/curiosita/qual-e-la-parola-piu-lunga-della-lingua-italiana
+    public static final String TRANSLATION_URL_BASE = "https://api.mymemory.translated.net/get?q=";
+    public static final String TRANSLATION_URL_TRAIL = "&langpair=it|en";
 
     //requests from client
     public static final String REQUEST_LOGIN = "login";
