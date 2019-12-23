@@ -13,7 +13,11 @@ import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-//package private class, the class and the member can only be called by the Server components
+/**
+ * Class representing and collecting the users and their relations. Handles all the operations involving users
+ * The class has only static method so they can be called easily where needed
+ * Package private class, the class and the member can only be called by the Server components
+ */
 class UserDB {
 
     static private ConcurrentHashMap<String, User> usersTable = new ConcurrentHashMap<>();
@@ -22,6 +26,13 @@ class UserDB {
 
     //TODO: add save to file
 
+    /**
+     * Add a user the the database
+     * @param username
+     * @param password
+     * @throws WQRegisterInterface.UserAlreadyRegisteredException When the username is already present in the DB
+     * @throws WQRegisterInterface.InvalidPasswordException When the password is blank or null
+     */
     static void addUser(String username, String password) throws WQRegisterInterface.UserAlreadyRegisteredException, WQRegisterInterface.InvalidPasswordException {
         if(usersTable.containsKey(username))
             throw new WQRegisterInterface.UserAlreadyRegisteredException();
@@ -33,30 +44,45 @@ class UserDB {
         relationsGraph.addNode();
     }
 
+    /**
+     * Logs in the user to the DB
+     * @param name The name of the user
+     * @param password His password
+     * @param address His current IP address
+     * @param UDPPort His preferred UDP port
+     * @throws UserNotFoundException When the username is not to be found in the DB
+     * @throws WQRegisterInterface.InvalidPasswordException When the given password doesn't match the original one
+     * @throws AlreadyLoggedException When the user is already logged
+     */
     static void logUser(String name, String password, InetAddress address, int UDPPort) throws UserNotFoundException, WQRegisterInterface.InvalidPasswordException, AlreadyLoggedException {
         User user = usersTable.get(name);
         if(user == null)
             throw new UserNotFoundException();
         if(user.notMatches(name, password))
             throw new WQRegisterInterface.InvalidPasswordException();
-
-        //might be useless
-//        if(user.isLogged())
-//            throw new AlreadyLoggedException();
+        if(user.isLogged())
+            throw new AlreadyLoggedException();
 
         user.login(address, UDPPort);
     }
 
+    //the above method when using a default udp port
     static void logUser(String name, String password, InetAddress address) throws UserNotFoundException, WQRegisterInterface.InvalidPasswordException, AlreadyLoggedException {
         logUser(name, password, address, Consts.UDP_PORT);
     }
 
+    /**
+     * Logs out the user
+     * @param name
+     * @throws UserNotFoundException If the user could not be found
+     * @throws NotLoggedException If the user is not logged in (currently disabled)
+     */
     static void logoutUser(String name) throws UserNotFoundException, NotLoggedException {
         User user = usersTable.get(name);
         if(user == null)
             throw new UserNotFoundException();
 
-        //might be useless
+        //commented as it's only a minor error
 //        if(user.isNotLogged())
 //            throw new NotLoggedException();
 
@@ -64,6 +90,15 @@ class UserDB {
     }
 
 
+    /**
+     * Creates a friendship between the given user
+     * @param nick1 The user who requested the friendship
+     * @param nick2 The user nick1 wants to be friend with
+     * @throws UserNotFoundException If one of the user were not found in the DB
+     * @throws AlreadyFriendsException If the two users were already friends
+     * @throws NotLoggedException If the requesting user is not logged
+     * @throws SameUserException If the nick provided are the same
+     */
     static void addFriendship(String nick1, String nick2) throws UserNotFoundException, AlreadyFriendsException, NotLoggedException, SameUserException {
         if(nick1.equals(nick2))
             throw new SameUserException();
@@ -81,7 +116,13 @@ class UserDB {
         relationsGraph.addArch(user1, user2);
     }
 
-    //TODO: a non logged user should not be able to ask this question
+    /**
+     * Retrieves the friend list of the given user
+     * @param name The username whose friends to return
+     * @return The JSON string of a linkedList of users
+     * @throws UserNotFoundException If the given user were not found
+     * @throws NotLoggedException If the given user is not logged in
+     */
     static String getFriends(String name) throws UserNotFoundException, NotLoggedException {
         User friendlyUser = usersTable.get(name);
 
@@ -92,10 +133,21 @@ class UserDB {
 
 
         LinkedList<User> friends = relationsGraph.getLinkedNodes(friendlyUser);
+        //TODO: maybe return a JSON array of usernames
         Gson gson = new Gson();
         return gson.toJson(friends);
     }
 
+    /**
+     * Sends a challenge request to the challenged user, instantiates the challenge and send confirmation messages through udp
+     * @param challengerName
+     * @param challengedName
+     * @param datagramSocket The UDP socket of the server
+     * @throws UserNotFoundException If the user were not found
+     * @throws NotFriendsException If the two users are not friends
+     * @throws NotLoggedException If the challenger is not logged
+     * @throws SameUserException If the two user are the same
+     */
     static void challengeFriend(String challengerName, String challengedName, DatagramSocket datagramSocket) throws UserNotFoundException, NotFriendsException, NotLoggedException, SameUserException {
         if(challengedName.equals(challengerName))
             throw new SameUserException();
@@ -290,6 +342,6 @@ class UserDB {
     static class AlreadyFriendsException extends Exception {
     }
 
-     static class SameUserException extends Exception{
+    static class SameUserException extends Exception{
     }
 }

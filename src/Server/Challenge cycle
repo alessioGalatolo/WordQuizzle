@@ -1,0 +1,13 @@
+New user
+-> registers
+-> logs in
+-> adds at least a friend
+-> starts a challenge (UDP request)
+if friend refuses or timeout
+    -> challenge ends.
+else
+    -> challenge starts
+    -> clients sends ready for challenge via TCP
+    -> gets first word and responds
+    ...
+    -> challenge ends

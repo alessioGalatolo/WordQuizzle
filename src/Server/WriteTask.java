@@ -8,6 +8,9 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 
+/**
+ * Class that does all the possible writing work
+ */
 public class WriteTask implements Runnable {
 
     private SelectionKey selectionKey;
@@ -40,7 +43,7 @@ public class WriteTask implements Runnable {
                 String message = new String((byte[]) selectionKey.attachment(), StandardCharsets.UTF_8);
                 String[] messageFragments = message.split(" ");
 
-                String response;
+                String response = "";
 
 
                 //TODO: move actions taken from write task to read task
@@ -85,18 +88,25 @@ public class WriteTask implements Runnable {
                             response = UserDB.getRanking(messageFragments[1]);
                             break;
 
-
+                        /*
+                         * User already received first word so he sends the translation of the last word
+                         * and wants the next word
+                         */
                         case Consts.REQUEST_NEXT_WORD:
                             //Check correctness of translated word, then send new word
+                            int matchID = Integer.parseInt(messageFragments[1]);
+                            String originalWord = messageFragments[2];
                             String translatedWord = messageFragments[3];
-                            ChallengeHandler.getInstance().checkTranslatedWord(Integer.parseInt(messageFragments[1]), messageFragments[2], translatedWord);
-
+                            boolean outcome = ChallengeHandler.getInstance().checkTranslatedWord(matchID, originalWord, translatedWord);
+                            response = Consts.getTranslationResponse(matchID, originalWord, translatedWord, outcome);
+//                            response += "\n"; //TODO: ???
 
                         case Consts.REQUEST_READY_FOR_CHALLENGE:
                             //client is ready for a match
                             int matchId = Integer.parseInt(messageFragments[1]);
                             String user = messageFragments[2];
-                            response = ChallengeHandler.getInstance().getNextWord(matchId, user);
+                            String nextWord = ChallengeHandler.getInstance().getNextWord(matchId, user);
+                            response += Consts.getNextWordResponse(matchId, nextWord);
 
                             break;
 
@@ -118,6 +128,8 @@ public class WriteTask implements Runnable {
                     response = Consts.RESPONSE_NOT_LOGGED;
                 } catch (UserDB.SameUserException e) {
                     response = Consts.RESPONSE_SAME_USER;
+                } catch (ChallengeHandler.Challenge.GameTimeoutException e) {
+                    response = Consts.RESPONSE_CHALLENGE_TIMEOUT;
                 }
 
                 byteBuffer = ByteBuffer.wrap(response.getBytes(StandardCharsets.UTF_8));

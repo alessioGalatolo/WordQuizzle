@@ -28,6 +28,11 @@ class ChallengeHandler {
     private static ConcurrentHashMap<Integer, Challenge> activeChallenges = new ConcurrentHashMap<>();
     private static ConcurrentHashMap<Integer, Challenge> pastChallenges = new ConcurrentHashMap<>();
 
+    /**
+     * Creates ChallengeHandler instance if necessary
+     * Follows singleton pattern
+     * @return The instance of the ChallengeHandler
+     */
     static ChallengeHandler getInstance(){
         if(singleInstance == null){
             singleInstance = new ChallengeHandler();
@@ -35,11 +40,16 @@ class ChallengeHandler {
         return singleInstance;
     }
 
+    //private constructor that get the default filename
     private ChallengeHandler(){
         this(Consts.DICTIONARY_FILENAME);
     }
 
-    //initialize the dictionary from file
+    /**
+     * Initializes the challenges dictionary from file
+     * Follows singleton pattern
+     * @param filename File containing the dictionary. Must have the size of the dictionary as a string in the first line
+     */
     private ChallengeHandler(String filename){
         try {
             FileChannel inChannel = FileChannel.open(Paths.get(filename)); //file has a word per line
@@ -101,31 +111,61 @@ class ChallengeHandler {
         } catch (IOException e) {
             e.printStackTrace();
         } catch (ArrayIndexOutOfBoundsException e){
-            System.err.println("Dictionary size is lower than actual size");
+            System.err.println("Given dictionary size is lower than actual size");
         }
     }
 
-    String getNextWord(int challengeId, String user){
-        return activeChallenges.get(challengeId).getNextWord(user);
+    /**
+     * @param matchId The current match ID
+     * @param user The user request a new word
+     * @return The word to be translated
+     */
+    String getNextWord(int matchId, String user){
+        return activeChallenges.get(matchId).getNextWord(user);
         //TODO: start challenge
     }
 
+    /**
+     * Creates a challenge and adds it to the list
+     * @param user1 First user of the challenge
+     * @param user2 Second user of the challenge
+     * @return The id of the challenge
+     */
     int createChallenge(String user1, String user2){
         Challenge newChallenge = new Challenge(user1, user2, dictionary);
         activeChallenges.put(newChallenge.getId(), newChallenge);
         return newChallenge.getId();
     }
 
-    void checkTranslatedWord(int matchId, String user, String translatedWord) {
-        String originalWord = activeChallenges.get(matchId).getLastWord(user);
+    /**
+     * Updates challenge score based on the correctness of the translation
+     * @param matchId The id of the match
+     * @param user The user who sent the word
+     * @param translatedWord The user-translated word
+     * @return True if the translation is correct, false otherwise
+     * @throws Challenge.GameTimeoutException if the user time has expired
+     */
+    boolean checkTranslatedWord(int matchId, String user, String translatedWord) throws Challenge.GameTimeoutException {
+        Challenge challenge = activeChallenges.get(matchId);
+        String originalWord = challenge.getLastWord(user);
         if(wellTranslated(originalWord, translatedWord)){
-            //....
+            challenge.updateScore(user, Consts.WIN_SCORE_AMOUNT);
+            return true;
+        }else{
+            challenge.updateScore(user, Consts.LOSE_SCORE_AMOUNT);
+            return false;
         }
     }
 
+    /**
+     * Checks the match between the user-translated word and the online translation
+     * @param originalWord The original word to be translated
+     * @param translatedWord The user translation
+     * @return True if the translation is correct, false otherwise
+     */
     private boolean wellTranslated(String originalWord, String translatedWord) {
         try {
-            URL url = new URL(Consts.TRANSLATION_URL_BASE + originalWord + Consts.TRANSLATION_URL_TRAIL);
+            URL url = new URL(Consts.getTranslationURL(originalWord));
             try(var inputStream = new BufferedReader(new InputStreamReader(url.openStream()))){
                 StringBuilder stringBuilder = new StringBuilder();
                 Gson gson = new Gson();
@@ -136,7 +176,7 @@ class ChallengeHandler {
                 }
                 JsonObject jsonObject = gson.fromJson(stringBuilder.toString(), JsonObject.class);
 
-                //TODO: change score based on levenshtein distance
+                //TODO: change score based on Levenshtein distance
                 return jsonObject.get("responseData").getAsJsonObject().get("translatedText").getAsString().toLowerCase().equals(translatedWord.toLowerCase());
 
 
@@ -151,17 +191,24 @@ class ChallengeHandler {
         return false;
     }
 
-
+    /**
+     * Class that represents a challenge, it stores all the useful info
+     * and gives some basic operations
+     */
     static class Challenge{
         //counter is shared between multiple threads and instances
         private static final AtomicInteger idCounter = new AtomicInteger(0); //every challenge has its id assigned at construction time
         private int id;
         private String user1;
         private String user2;
+        private long user1Timestamp = 0;
+        private long user2Timestamp = 0;
         private int user1Index = 0;
         private int user2Index = 0;
+        private int user1Score = 0;
+        private int user2Score = 0;
         private String[] selectedWords = new String[Consts.CHALLENGE_WORDS_TO_MATCH]; //contains selected words
-        private static Random random = new Random(GregorianCalendar.getInstance().getTimeInMillis());
+        private static Random random = new Random(GregorianCalendar.getInstance().getTimeInMillis()); //random generator to get the challenge words
 
         Challenge(String user1, String user2, String[] dictionary){
             this.user1 = user1;
@@ -180,10 +227,15 @@ class ChallengeHandler {
 
         //TODO: add time check
         String getNextWord(String user) {
-            if(user.equals(user1))
+            if(user.equals(user1)) {
+                if(user1Timestamp == 0)
+                    user1Timestamp = System.currentTimeMillis();
                 return selectedWords[user1Index++];
-            else if(user.equals(user2))
+            }else if(user.equals(user2)) {
+                if (user2Timestamp == 0)
+                    user2Timestamp = System.currentTimeMillis();
                 return selectedWords[user2Index++];
+            }
             return null; //no username match
             //TODO: throw exception
         }
@@ -195,6 +247,25 @@ class ChallengeHandler {
                 return selectedWords[user2Index - 1];
             return null; //no username match
             //TODO: throw exception
+        }
+
+        void updateScore(String user, int amount) throws GameTimeoutException {
+            if(user.equals(user1)) {
+                if(System.currentTimeMillis() - user1Timestamp < Consts.CHALLENGE_TIMEOUT)
+                    user1Score += amount;
+                else
+                    throw new GameTimeoutException();
+            }
+            else if(user.equals(user2)) {
+                if(System.currentTimeMillis() - user2Timestamp < Consts.CHALLENGE_TIMEOUT)
+                    user2Score += amount;
+                else
+                    throw new GameTimeoutException();
+            }
+            //TODO: throw exception for user not found
+        }
+
+        class GameTimeoutException extends Exception{
         }
     }
 

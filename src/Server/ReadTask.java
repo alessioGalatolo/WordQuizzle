@@ -6,6 +6,10 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.util.Arrays;
 
+
+/**
+ * Class that read from a key all the available bytes
+ */
 public class ReadTask implements Runnable {
     private SelectionKey selectionKey;
 
