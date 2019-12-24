@@ -1,5 +1,8 @@
-package Server;//class with most used constants
+package Server;
 
+/**
+ * Class with the most used constants
+ */
 public class Consts {
     //TODO: move unnecessary variables
 
@@ -61,16 +64,6 @@ public class Consts {
     }
 
     /**
-     * Creates a string to be sent after a next word request
-     * @param matchId The current match ID
-     * @param nextWord The next word to be sent
-     * @return The string to be sent back
-     */
-    public static String getNextWordResponse(int matchId, String nextWord) {
-        return Consts.RESPONSE_NEXT_WORD + matchId + " " + nextWord;
-    }
-
-    /**
      * Creates a string to be sent in response to a translation
      * @param matchID The current match ID
      * @param originalWord The original word
@@ -82,5 +75,34 @@ public class Consts {
         String outString = outcome ? RESPONSE_OK: RESPONSE_WORD_MISMATCH;
         outString += " " + matchID + " " + originalWord + " " + translatedWord;
         return outString;
+    }
+
+    /**
+     * Creates a string to be sent after a next word request
+     * @param matchId The current match ID
+     * @param nextWord The next word to be sent
+     * @return The string to be sent back
+     */
+    public static String getNextWordResponse(int matchId, String nextWord) {
+        return Consts.RESPONSE_NEXT_WORD + matchId + " " + nextWord;
+    }
+
+
+
+    //client request messages
+    public static String getRequestLogin(String username, String password){
+        return Consts.REQUEST_LOGIN + " " + username + " " + password;
+    }
+
+    public static String getRequestLogout(String username){
+        return Consts.REQUEST_LOGOUT + " " + username;
+    }
+
+    public static String getRequestAddFriend(String user1, String user2) {
+        return REQUEST_ADD_FRIEND + " " + user1 + " " + user2;
+    }
+
+    public static String getRequestChallenge(String user1, String user2) {
+        return REQUEST_CHALLENGE + " " + user1 + " " + user2;
     }
 }

@@ -7,6 +7,10 @@ import java.net.InetAddress;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 
+/**
+ * Class that manages the UDP server
+ * Handles all the challenge requests
+ */
 public class UDPServer extends Thread {
     @Override
     public void run() {
@@ -33,20 +37,25 @@ public class UDPServer extends Thread {
                         String name1 = messageFragments[1];
                         String name2 = messageFragments[2];
 
+                        String errorMessage = null;//stores, eventually, the error message
+
                         try {
                             UserDB.challengeFriend(name1, name2, datagramSocket);
                         } catch (UserDB.UserNotFoundException e) {
-                            e.printStackTrace();
+                            errorMessage = Consts.RESPONSE_USER_NOT_FOUND;
                         } catch (UserDB.NotFriendsException e) {
-                            e.printStackTrace();
+                            errorMessage = Consts.RESPONSE_NOT_FRIENDS;
                         } catch (UserDB.NotLoggedException e) {
-                            e.printStackTrace();
+                            errorMessage = Consts.RESPONSE_NOT_LOGGED;
                         } catch (UserDB.SameUserException e) {
-                            e.printStackTrace();
+                            errorMessage = Consts.RESPONSE_SAME_USER;
                         }
 
-//                        DatagramPacket response = new DatagramPacket(, request.getAddress(), request.getPort());
-//                        datagramSocket.send(response);
+                        if(errorMessage != null) {
+                            byte[] messageBytes = errorMessage.getBytes(StandardCharsets.UTF_8);
+                            DatagramPacket response = new DatagramPacket(messageBytes, messageBytes.length, request.getAddress(), request.getPort());
+                            datagramSocket.send(response);
+                        }
                     }
                 }catch (SocketTimeoutException ignored){
                 }

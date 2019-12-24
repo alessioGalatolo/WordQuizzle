@@ -5,6 +5,9 @@ import Commons.WQRegisterInterface;
 import java.rmi.RemoteException;
 import java.rmi.server.RemoteServer;
 
+/**
+ * Implementation of WQRegisterInterface for RMI
+ */
 public class WQRegister extends RemoteServer implements WQRegisterInterface {
 
     @Override

@@ -7,7 +7,15 @@ import java.rmi.RemoteException;
 
 public interface WQRegisterInterface extends Remote {
 
-    //returns the outcome of the request
+    /**
+     * Registers the user to the program database
+     * @param username
+     * @param password
+     * @return The outcome of the operation
+     * @throws RemoteException
+     * @throws WQRegister.UserAlreadyRegisteredException If the given username is already taken
+     * @throws WQRegister.InvalidPasswordException If the password is blank or null
+     */
     boolean registerUser(String username, String/*TODO: add some kind of encryption*/ password) throws RemoteException, WQRegister.UserAlreadyRegisteredException, WQRegister.InvalidPasswordException;
 
 

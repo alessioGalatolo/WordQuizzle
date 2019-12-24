@@ -32,131 +32,134 @@ public class WriteTask implements Runnable {
             //will contain the response to be written to the client at the end of the request
             ByteBuffer byteBuffer;
 
-            if (selectionKey.attachment() instanceof ByteBuffer) {
-                //previous write was incomplete
-                byteBuffer = (ByteBuffer) selectionKey.attachment();
+            if (selectionKey.attachment() != null) {
+                if (selectionKey.attachment() instanceof ByteBuffer) {
+                    //previous write was incomplete
+                    byteBuffer = (ByteBuffer) selectionKey.attachment();
 //                message = new String((byteBuffer).array(), 0, byteBuffer.limit(), StandardCharsets.UTF_8); //TODO: limit?
 
 
-            } else if (selectionKey.attachment() instanceof byte[]) {
-                //previous operation was a read, serving request then sending response
-                String message = new String((byte[]) selectionKey.attachment(), StandardCharsets.UTF_8);
-                String[] messageFragments = message.split(" ");
+                } else if (selectionKey.attachment() instanceof byte[]) {
+                    //previous operation was a read, serving request then sending response
+                    String message = new String((byte[]) selectionKey.attachment(), StandardCharsets.UTF_8);
+                    String[] messageFragments = message.split(" ");
 
-                String response = "";
+                    String response = "";
 
 
-                //TODO: move actions taken from write task to read task
-                try {
-                    switch (messageFragments[0].toLowerCase()) {
-                        case Consts.REQUEST_LOGIN:
-                            if(messageFragments.length > 3)
-                                UserDB.logUser(messageFragments[1], messageFragments[2],
-                                        ((InetSocketAddress) socketChannel.getRemoteAddress()).getAddress(),
-                                        Integer.parseInt(messageFragments[3]));
-                            else
-                                UserDB.logUser(messageFragments[1], messageFragments[2], ((InetSocketAddress) socketChannel.getRemoteAddress()).getAddress());
+                    //TODO: move actions taken from write task to read task
+                    try {
+                        switch (messageFragments[0].toLowerCase()) {
+                            case Consts.REQUEST_LOGIN:
+                                if (messageFragments.length > 3)
+                                    UserDB.logUser(messageFragments[1], messageFragments[2],
+                                            ((InetSocketAddress) socketChannel.getRemoteAddress()).getAddress(),
+                                            Integer.parseInt(messageFragments[3]));
+                                else
+                                    UserDB.logUser(messageFragments[1], messageFragments[2], ((InetSocketAddress) socketChannel.getRemoteAddress()).getAddress());
 
-                            response = Consts.RESPONSE_OK;
-                            break;
+                                response = Consts.RESPONSE_OK;
+                                break;
 
-                        case Consts.REQUEST_LOGOUT:
-                            UserDB.logoutUser(messageFragments[1]);
-                            response = Consts.RESPONSE_OK;
-                            break;
+                            case Consts.REQUEST_LOGOUT:
+                                UserDB.logoutUser(messageFragments[1]);
+                                response = Consts.RESPONSE_OK;
+                                break;
 
-                        case Consts.REQUEST_ADD_FRIEND:
-                            UserDB.addFriendship(messageFragments[1], messageFragments[2]);
-                            response = Consts.RESPONSE_OK;
+                            case Consts.REQUEST_ADD_FRIEND:
+                                UserDB.addFriendship(messageFragments[1], messageFragments[2]);
+                                response = Consts.RESPONSE_OK;
 //                                response = Consts.RESPONSE_USER_NOT_FOUND; //TODO: check if user1 or user2
 
-                            break;
+                                break;
 
-                        case Consts.REQUEST_FRIEND_LIST:
-                            response = UserDB.getFriends(messageFragments[1]);
-                            break;
+                            case Consts.REQUEST_FRIEND_LIST:
+                                response = UserDB.getFriends(messageFragments[1]);
+                                break;
 
-                        case Consts.REQUEST_CHALLENGE:
-                            response = Consts.RESPONSE_ILLEGAL_REQUEST;
-                            break;
+                            case Consts.REQUEST_CHALLENGE:
+                                response = Consts.RESPONSE_ILLEGAL_REQUEST;
+                                break;
 
-                        case Consts.REQUEST_SCORE:
-                            response = String.valueOf(UserDB.getScore(messageFragments[1]));
-                            break;
+                            case Consts.REQUEST_SCORE:
+                                response = String.valueOf(UserDB.getScore(messageFragments[1]));
+                                break;
 
-                        case Consts.REQUEST_RANKINGS:
-                            response = UserDB.getRanking(messageFragments[1]);
-                            break;
+                            case Consts.REQUEST_RANKINGS:
+                                response = UserDB.getRanking(messageFragments[1]);
+                                break;
 
-                        /*
-                         * User already received first word so he sends the translation of the last word
-                         * and wants the next word
-                         */
-                        case Consts.REQUEST_NEXT_WORD:
-                            //Check correctness of translated word, then send new word
-                            int matchID = Integer.parseInt(messageFragments[1]);
-                            String originalWord = messageFragments[2];
-                            String translatedWord = messageFragments[3];
-                            boolean outcome = ChallengeHandler.getInstance().checkTranslatedWord(matchID, originalWord, translatedWord);
-                            response = Consts.getTranslationResponse(matchID, originalWord, translatedWord, outcome);
+                            /*
+                             * User already received first word so he sends the translation of the last word
+                             * and wants the next word
+                             */
+                            case Consts.REQUEST_NEXT_WORD:
+                                //Check correctness of translated word, then send new word
+                                int matchID = Integer.parseInt(messageFragments[1]);
+                                String originalWord = messageFragments[2];
+                                String translatedWord = messageFragments[3];
+                                boolean outcome = ChallengeHandler.getInstance().checkTranslatedWord(matchID, originalWord, translatedWord);
+                                response = Consts.getTranslationResponse(matchID, originalWord, translatedWord, outcome);
 //                            response += "\n"; //TODO: ???
 
-                        case Consts.REQUEST_READY_FOR_CHALLENGE:
-                            //client is ready for a match
-                            int matchId = Integer.parseInt(messageFragments[1]);
-                            String user = messageFragments[2];
-                            String nextWord = ChallengeHandler.getInstance().getNextWord(matchId, user);
-                            response += Consts.getNextWordResponse(matchId, nextWord);
+                            case Consts.REQUEST_READY_FOR_CHALLENGE:
+                                //client is ready for a match
+                                int matchId = Integer.parseInt(messageFragments[1]);
+                                String user = messageFragments[2];
+                                String nextWord = ChallengeHandler.getInstance().getNextWord(matchId, user);
+                                response += Consts.getNextWordResponse(matchId, nextWord);
 
-                            break;
+                                break;
 
-                        default:
-                            response = Consts.RESPONSE_UNKNOWN_REQUEST;
-                            break;
+                            default:
+                                response = Consts.RESPONSE_UNKNOWN_REQUEST;
+                                break;
+                        }
+
+                        //set error response in case of exception
+                    } catch (UserDB.UserNotFoundException e) {
+                        response = Consts.RESPONSE_USER_NOT_FOUND;
+                    } catch (WQRegisterInterface.InvalidPasswordException e) {
+                        response = Consts.RESPONSE_WRONG_PASSWORD;
+                    } catch (UserDB.AlreadyLoggedException e) {
+                        response = Consts.RESPONSE_ALREADY_LOGGED;
+                    } catch (UserDB.AlreadyFriendsException e) {
+                        response = Consts.RESPONSE_ALREADY_FRIENDS;
+                    } catch (UserDB.NotLoggedException e) {
+                        response = Consts.RESPONSE_NOT_LOGGED;
+                    } catch (UserDB.SameUserException e) {
+                        response = Consts.RESPONSE_SAME_USER;
+                    } catch (ChallengeHandler.Challenge.GameTimeoutException e) {
+                        response = Consts.RESPONSE_CHALLENGE_TIMEOUT;
                     }
 
-                //set error response in case of exception
-                }catch (UserDB.UserNotFoundException e){
-                    response = Consts.RESPONSE_USER_NOT_FOUND;
-                } catch (WQRegisterInterface.InvalidPasswordException e) {
-                    response = Consts.RESPONSE_WRONG_PASSWORD;
-                } catch (UserDB.AlreadyLoggedException e) {
-                    response = Consts.RESPONSE_ALREADY_LOGGED;
-                } catch (UserDB.AlreadyFriendsException e) {
-                    response = Consts.RESPONSE_ALREADY_FRIENDS;
-                } catch (UserDB.NotLoggedException e) {
-                    response = Consts.RESPONSE_NOT_LOGGED;
-                } catch (UserDB.SameUserException e) {
-                    response = Consts.RESPONSE_SAME_USER;
-                } catch (ChallengeHandler.Challenge.GameTimeoutException e) {
-                    response = Consts.RESPONSE_CHALLENGE_TIMEOUT;
+                    byteBuffer = ByteBuffer.wrap(response.getBytes(StandardCharsets.UTF_8));
+
+
+                    //TODO: should not assume complete write
+                    //sending first the size of the buffer to be allocated
+                    ByteBuffer intBuffer = ByteBuffer.allocate(Consts.INT_SIZE);
+                    intBuffer.putInt(byteBuffer.remaining());
+                    intBuffer.flip();
+                    socketChannel.write(intBuffer);
+
+                } else {
+                    System.err.println("The attachment of the selection key in not a known instance, terminating task");
+                    return;
                 }
 
-                byteBuffer = ByteBuffer.wrap(response.getBytes(StandardCharsets.UTF_8));
 
-
-                //TODO: should not assume complete write
-                //sending first the size of the buffer to be allocated
-                ByteBuffer intBuffer = ByteBuffer.allocate(Consts.INT_SIZE);
-                intBuffer.putInt(byteBuffer.remaining());
-                intBuffer.flip();
-                socketChannel.write(intBuffer);
-
-            } else {
-                System.err.println("The attachment of the selection key in not a know instance, terminating task");
-                return;
+                //writing buffer
+                socketChannel.write(byteBuffer);
+                if (byteBuffer.hasRemaining()) {
+                    selectionKey.interestOps(SelectionKey.OP_WRITE); //expecting a write from the server as the new operation
+                    selectionKey.attach(byteBuffer);
+                } else {
+                    selectionKey.interestOps(SelectionKey.OP_READ); //expecting a write from the client as the new operation
+                    selectionKey.attach(null); //nothing to be kept
+                }
             }
-
-            //writing buffer
-            socketChannel.write(byteBuffer);
-            if (byteBuffer.hasRemaining()) {
-                selectionKey.interestOps(SelectionKey.OP_WRITE); //expecting a write from the server as the new operation
-                selectionKey.attach(byteBuffer);
-            } else {
-                selectionKey.interestOps(SelectionKey.OP_READ); //expecting a write from the client as the new operation
-                selectionKey.attach(null); //nothing to be kept
-            }
-        }catch (IOException e){
+        }catch(IOException e){
             e.printStackTrace();
         }
     }

@@ -175,19 +175,28 @@ class UserDB {
             //wait for ok response
             try {
                 datagramSocket.receive(packet);
-                //TODO: check response
+                String response = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8);
+                if(response.toLowerCase().startsWith(Consts.RESPONSE_OK.toLowerCase())){
+                    //sending confirmation to both player with match ID
+                    int matchId = ChallengeHandler.getInstance().createChallenge(challengerName, challengedName);
+                    byte[] confirmationResponse = (Consts.RESPONSE_OK + " " + matchId).getBytes(StandardCharsets.UTF_8);
+                    packet = new DatagramPacket(confirmationResponse, confirmationResponse.length, challenger.getAddress(), challenger.getUDPPort());
+                    datagramSocket.send(packet);
+                    packet = new DatagramPacket(confirmationResponse, confirmationResponse.length, challenged.getAddress(), challenged.getUDPPort());
+                    datagramSocket.send(packet);
+                    //TODO: add matchId to both player list of challenges
 
-                //TODO: assign matchId and send confirmation to both player
-                int matchId = ChallengeHandler.getInstance().createChallenge(challengerName, challengedName);
-                //TODO: add matchId to both player list of challenges
+                    usersTable.get(challengerName).addMatch(matchId);
+                    usersTable.get(challengedName).addMatch(matchId);
+
+                }else{
+                    sendErrorMessage(datagramSocket, challenger);
+                    sendErrorMessage(datagramSocket, challenged);
+                }
 
             }catch (SocketTimeoutException e){
-                //no response
-                byte[] errorMessage = Consts.RESPONSE_CHALLENGE_REFUSED.getBytes(StandardCharsets.UTF_8);
-                packet = new DatagramPacket(errorMessage, errorMessage.length, challenger.getAddress(), challenger.getUDPPort());
-
-                datagramSocket.send(packet);
-                //end of communication
+                sendErrorMessage(datagramSocket, challenger);
+                sendErrorMessage(datagramSocket, challenged);
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -196,12 +205,31 @@ class UserDB {
 
     }
 
+    private static void sendErrorMessage(DatagramSocket datagramSocket, User user) throws IOException {
+        //no response
+        byte[] errorMessage = Consts.RESPONSE_CHALLENGE_REFUSED.getBytes(StandardCharsets.UTF_8);
+        DatagramPacket packet = new DatagramPacket(errorMessage, errorMessage.length, user.getAddress(), user.getUDPPort());
+
+        datagramSocket.send(packet);
+        //end of communication
+    }
+
+    /**
+     * Retrieves the score of the given user
+     * @param name The name of the user
+     * @return The score of the given user
+     */
     static int getScore(String name){
         User user = usersTable.get(name);
 
         return user.getScore();
     }
 
+    /**
+     * Retrieves the ranking by score of all the friends of the given user
+     * @param name The name of the user
+     * @return A json object of a string array with name and ranking of each user
+     */
     static String getRanking(String name){
         User user = usersTable.get(name);
         User[] friends = relationsGraph.getLinkedNodes(user).toArray(new User[0]); //get array for faster access
@@ -216,10 +244,15 @@ class UserDB {
     }
 
 
+    /**
+     * Class representing the user.
+     * It keeps all the useful info and provides basic ops for the user
+     */
     static class User{
         private String name;
         private String password;
         private InetAddress loginAddress = null;
+        private Vector<Integer> matchList = new Vector<>();
         private int UDPPort;
         private int score = 0;
         private int id;
@@ -288,6 +321,10 @@ class UserDB {
             return loginAddress == null;
         }
 
+        void addMatch(int matchId) {
+            matchList.add(matchId);
+        }
+
         @Override
         public boolean equals(Object obj) {
             if(obj instanceof User) {
@@ -297,9 +334,10 @@ class UserDB {
         }
     }
 
-
-    //a non-oriented graph implemented with an adjacencyList
-    //requires that user has an unique id to be used to access array location
+    /**
+     * A non-oriented graph implemented with an adjacencyList
+     * requires that user has an unique id to be used to access array location
+     */
     static class SimpleGraph{
         Vector<LinkedList<User>> adjacencyList = new Vector<>(); //i-sm element is the user with i as id
 
