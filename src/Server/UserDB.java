@@ -46,7 +46,7 @@ class UserDB {
 
     /**
      * Logs in the user to the DB
-     * @param name The name of the user
+     * @param username The name of the user
      * @param password His password
      * @param address His current IP address
      * @param UDPPort His preferred UDP port
@@ -54,11 +54,11 @@ class UserDB {
      * @throws WQRegisterInterface.InvalidPasswordException When the given password doesn't match the original one
      * @throws AlreadyLoggedException When the user is already logged
      */
-    static void logUser(String name, String password, InetAddress address, int UDPPort) throws UserNotFoundException, WQRegisterInterface.InvalidPasswordException, AlreadyLoggedException {
-        User user = usersTable.get(name);
+    static void logUser(String username, String password, InetAddress address, int UDPPort) throws UserNotFoundException, WQRegisterInterface.InvalidPasswordException, AlreadyLoggedException {
+        User user = usersTable.get(username);
         if(user == null)
             throw new UserNotFoundException();
-        if(user.notMatches(name, password))
+        if(user.notMatches(username, password))
             throw new WQRegisterInterface.InvalidPasswordException();
         if(user.isLogged())
             throw new AlreadyLoggedException();
@@ -73,12 +73,12 @@ class UserDB {
 
     /**
      * Logs out the user
-     * @param name
+     * @param username
      * @throws UserNotFoundException If the user could not be found
      * @throws NotLoggedException If the user is not logged in (currently disabled)
      */
-    static void logoutUser(String name) throws UserNotFoundException, NotLoggedException {
-        User user = usersTable.get(name);
+    static void logoutUser(String username) throws UserNotFoundException, NotLoggedException {
+        User user = usersTable.get(username);
         if(user == null)
             throw new UserNotFoundException();
 
@@ -155,8 +155,9 @@ class UserDB {
         User challenger = usersTable.get(challengerName);
         User challenged = usersTable.get(challengedName);
 
-        if(challenger == null || challenged == null)
+        if(challenger == null || challenged == null) {
             throw new UserNotFoundException();
+        }
 
         if(relationsGraph.nodesAreNotLinked(challenger, challenged))
             throw new NotFriendsException();
