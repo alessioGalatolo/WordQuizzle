@@ -10,6 +10,7 @@ public class Consts {
     public static final int TCP_PORT = 6000;
     public static final int RMI_PORT = 7000;
     public static final int UDP_PORT = 8000;
+    public static final int SERVER_UDP_PORT = UDP_PORT;
     public static final int UDP_TIMEOUT = 1000;
     public static final String WQ_STUB_NAME = "My word quizzle name";
 
@@ -21,8 +22,12 @@ public class Consts {
 
     //game constants
     public static final int CHALLENGE_WORDS_TO_MATCH = 6;
+    public static final int MAX_MESSAGE_LENGTH = 1024; //TODO: improve calculation
+    public static final String SERVER_ADDRESS = "localhost";
     private static final int CHALLENGE_TIME_PER_WORD = 2000; //in ms
     public static final long CHALLENGE_TIMEOUT = CHALLENGE_WORDS_TO_MATCH * CHALLENGE_TIME_PER_WORD;
+    public static final String CHALLENGE_OK = "Ok";
+    public static final String CHALLENGE_WORD_MISMATCH = "FAIL"; //when the user sends a wrong translation
     public static final int ITALIAN_WORD_MAX_LENGTH = 29; //https://www.focus.it/cultura/curiosita/qual-e-la-parola-piu-lunga-della-lingua-italiana
     public static final int WIN_SCORE_AMOUNT = 3;
     public static final int LOSE_SCORE_AMOUNT = -1;
@@ -51,8 +56,7 @@ public class Consts {
     public static final String RESPONSE_SAME_USER = "The two user are the same";
     public static final String RESPONSE_CHALLENGE_REFUSED = "The user challenged has not accepted within the timeout";
     public static final String RESPONSE_CHALLENGE_TIMEOUT = "Your time for the challenge expired";
-    public static final String RESPONSE_WORD_MISMATCH = "FAIL"; //when the user sends a wrong translation
-    private static final String RESPONSE_NEXT_WORD = "NextWord: "; //beginning of response to next word request
+    public static final String RESPONSE_NEXT_WORD = "NextWord:"; //beginning of response to next word request
 
 
     //consts to create the translation url
@@ -72,7 +76,7 @@ public class Consts {
      * @return The string to be sent back
      */
     public static String getTranslationResponse(int matchID, String originalWord, String translatedWord, boolean outcome) {
-        String outString = outcome ? RESPONSE_OK: RESPONSE_WORD_MISMATCH;
+        String outString = outcome ? CHALLENGE_OK: CHALLENGE_WORD_MISMATCH;
         outString += " " + matchID + " " + originalWord + " " + translatedWord;
         return outString;
     }
@@ -84,7 +88,7 @@ public class Consts {
      * @return The string to be sent back
      */
     public static String getNextWordResponse(int matchId, String nextWord) {
-        return Consts.RESPONSE_NEXT_WORD + matchId + " " + nextWord;
+        return Consts.RESPONSE_NEXT_WORD + " " + matchId + " " + nextWord;
     }
 
 

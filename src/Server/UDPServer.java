@@ -27,12 +27,14 @@ public class UDPServer extends Thread {
 
             while (!interrupted()) {
                 try {
+                    //wait for challenge request
                     datagramSocket.receive(request);
 
-                    //TODO: check message validity
+                    //get message string
                     String[] messageFragments = new String(buffer, 0, request.getLength(), StandardCharsets.UTF_8).split(" ");
                     if(!messageFragments[0].equals(Consts.REQUEST_CHALLENGE)){
-                        sendErrorMessage(datagramSocket, request.getAddress(), request.getPort());
+                        //wrong request
+                        sendErrorMessage(datagramSocket, Consts.RESPONSE_UNKNOWN_REQUEST, request.getAddress(), request.getPort());
                     }else{
                         String name1 = messageFragments[1];
                         String name2 = messageFragments[2];
@@ -51,13 +53,13 @@ public class UDPServer extends Thread {
                             errorMessage = Consts.RESPONSE_SAME_USER;
                         }
 
+                        //there was an error
                         if(errorMessage != null) {
-                            byte[] messageBytes = errorMessage.getBytes(StandardCharsets.UTF_8);
-                            DatagramPacket response = new DatagramPacket(messageBytes, messageBytes.length, request.getAddress(), request.getPort());
-                            datagramSocket.send(response);
+                            sendErrorMessage(datagramSocket, errorMessage, request.getAddress(), request.getPort());
                         }
                     }
                 }catch (SocketTimeoutException ignored){
+                    //no messages retrieved
                 }
             }
 
@@ -69,10 +71,10 @@ public class UDPServer extends Thread {
 
     }
 
-    private void sendErrorMessage(DatagramSocket datagramSocket, InetAddress address, int port) throws IOException {
-        byte[] response = Consts.RESPONSE_UNKNOWN_REQUEST.getBytes(StandardCharsets.UTF_8);
-        DatagramPacket errorMessage = new DatagramPacket(response, response.length, address, port);
-        datagramSocket.send(errorMessage);
+    private void sendErrorMessage(DatagramSocket datagramSocket, String errorMessage, InetAddress address, int port) throws IOException {
+        byte[] response = errorMessage.getBytes(StandardCharsets.UTF_8);
+        DatagramPacket errorPacket = new DatagramPacket(response, response.length, address, port);
+        datagramSocket.send(errorPacket);
 
     }
 }

@@ -165,6 +165,7 @@ class UserDB {
         if(challenger.isNotLogged() || challenged.isNotLogged())
             throw new NotLoggedException();
 
+        //TODO: move outside of database
         //send challenge request to the other user
         byte[] challengeRequest = (Consts.REQUEST_CHALLENGE + " " + challengerName).getBytes(StandardCharsets.UTF_8); //TODO: check correct spacing
         DatagramPacket packet = new DatagramPacket(challengeRequest, challengeRequest.length, challenged.getAddress(), challenged.getUDPPort());
