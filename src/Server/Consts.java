@@ -75,10 +75,15 @@ public class Consts {
      * @param outcome The correctness of the translation
      * @return The string to be sent back
      */
-    public static String getTranslationResponse(int matchID, String originalWord, String translatedWord, boolean outcome) {
+    public static String getTranslationResponseServer(int matchID, String originalWord, String translatedWord, boolean outcome) {
         String outString = outcome ? CHALLENGE_OK: CHALLENGE_WORD_MISMATCH;
         outString += " " + matchID + " " + originalWord + " " + translatedWord;
         return outString;
+    }
+
+
+    public static String getTranslationResponseClient(int matchID, String originalWord, String translatedWord) {
+        return Consts.REQUEST_NEXT_WORD + " " + matchID + " " + originalWord + " " + translatedWord;
     }
 
     /**

@@ -99,8 +99,8 @@ public class WriteTask implements Runnable {
                                 String originalWord = messageFragments[2];
                                 String translatedWord = messageFragments[3];
                                 boolean outcome = ChallengeHandler.getInstance().checkTranslatedWord(matchID, originalWord, translatedWord);
-                                response = Consts.getTranslationResponse(matchID, originalWord, translatedWord, outcome);
-//                            response += "\n"; //TODO: ???
+                                response = Consts.getTranslationResponseServer(matchID, originalWord, translatedWord, outcome);
+                                response += "\n";
 
                             case Consts.REQUEST_READY_FOR_CHALLENGE:
                                 //client is ready for a match
@@ -131,6 +131,8 @@ public class WriteTask implements Runnable {
                         response = Consts.RESPONSE_SAME_USER;
                     } catch (ChallengeHandler.Challenge.GameTimeoutException e) {
                         response = Consts.RESPONSE_CHALLENGE_TIMEOUT;
+                    } catch (ChallengeHandler.Challenge.EndOfMatchException e) {
+                        response = " "; //TODO: send recap
                     }
 
                     byteBuffer = ByteBuffer.wrap(response.getBytes(StandardCharsets.UTF_8));

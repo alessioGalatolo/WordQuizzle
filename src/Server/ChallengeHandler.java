@@ -120,7 +120,7 @@ class ChallengeHandler {
      * @param user The user request a new word
      * @return The word to be translated
      */
-    String getNextWord(int matchId, String user){
+    String getNextWord(int matchId, String user) throws Challenge.EndOfMatchException {
         return activeChallenges.get(matchId).getNextWord(user);
         //TODO: start challenge
     }
@@ -226,11 +226,14 @@ class ChallengeHandler {
 
 
         //TODO: add time check
-        String getNextWord(String user) {
+        String getNextWord(String user) throws EndOfMatchException {
             if(user.equals(user1)) {
                 if(user1Timestamp == 0)
                     user1Timestamp = System.currentTimeMillis();
-                return selectedWords[user1Index++];
+                if(user1Index < Consts.CHALLENGE_WORDS_TO_MATCH)
+                    return selectedWords[user1Index++];
+                else
+                    throw new EndOfMatchException();
             }else if(user.equals(user2)) {
                 if (user2Timestamp == 0)
                     user2Timestamp = System.currentTimeMillis();
@@ -266,6 +269,9 @@ class ChallengeHandler {
         }
 
         class GameTimeoutException extends Exception{
+        }
+
+        class EndOfMatchException extends Exception{
         }
     }
 

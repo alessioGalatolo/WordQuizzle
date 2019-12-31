@@ -64,17 +64,20 @@ public class Main {
                             case "login":
                                 String toWrite = Consts.getRequestLogin(messageFragments[1], messageFragments[2]);
                                 ByteBuffer byteBuffer = ByteBuffer.wrap(toWrite.getBytes(StandardCharsets.UTF_8));
-                                client.write(byteBuffer);
+                                while (byteBuffer.hasRemaining())
+                                    client.write(byteBuffer);
                                 break;
                             case "logout":
                                 toWrite = Consts.getRequestLogout(messageFragments[1]);
                                 byteBuffer = ByteBuffer.wrap(toWrite.getBytes(StandardCharsets.UTF_8));
-                                client.write(byteBuffer);
+                                while (byteBuffer.hasRemaining())
+                                    client.write(byteBuffer);
                                 break;
                             case "addFriend":
                                 toWrite = Consts.getRequestAddFriend(messageFragments[1], messageFragments[2]);
                                 byteBuffer = ByteBuffer.wrap(toWrite.getBytes(StandardCharsets.UTF_8));
-                                client.write(byteBuffer);
+                                while (byteBuffer.hasRemaining())
+                                    client.write(byteBuffer);
                                 break;
                             case "challenge":
                                 thisUser.replace(0, thisUser.length(), messageFragments[1]);
@@ -112,23 +115,36 @@ public class Main {
         ByteBuffer messageBuffer = ByteBuffer.wrap(byteMessage);
 
         try {
-            client.write(messageBuffer);
+            //write ready for challenge
+            while (messageBuffer.hasRemaining())
+                client.write(messageBuffer);
+
+            //prepare to read new word
             messageBuffer = ByteBuffer.allocate(Consts.MAX_MESSAGE_LENGTH);
+
+            //read x words to be translated
             int i = 0;
             while(i < Consts.CHALLENGE_WORDS_TO_MATCH){
                 client.read(messageBuffer);
                 messageBuffer.flip();
+
                 String[] messages = new String(messageBuffer.array(), 0, messageBuffer.remaining(), StandardCharsets.UTF_8).split("\n");
                 for(String message: messages) {
                     String[] messageFragments = message.split(" ");
                     if (messageFragments[0].equals(Consts.RESPONSE_NEXT_WORD)) {
                         System.out.println("Next word to be translated is: " + messageFragments[2]);
-                        input.readLine();
-                        //TODO: ...
+                        String translatedWord = input.readLine();
+                        String translationMessage = Consts.getTranslationResponseClient(Integer.parseInt(messageFragments[1]), messageFragments[2], translatedWord);
+                        messageBuffer = ByteBuffer.wrap(translationMessage.getBytes(StandardCharsets.UTF_8));
+
+                        //send translated word
+                        while (messageBuffer.hasRemaining())
+                            client.write(messageBuffer);
+
                     } else if (messageFragments[0].equals(Consts.CHALLENGE_OK)){
-
+                        System.out.println("Last translation was correct!");
                     } else if (messageFragments[0].equals(Consts.CHALLENGE_WORD_MISMATCH)){
-
+                        System.out.println("Last translation was incorrect");
                     } else if (messageFragments[0].equals("timeout")){
                         //TODO: add timeout case
                     }
