@@ -136,7 +136,7 @@ public class WriteTask implements Runnable {
                     }
 
                     byteBuffer = ByteBuffer.wrap(response.getBytes(StandardCharsets.UTF_8));
-
+                    System.out.println("Writing: " + response);
 
                     //TODO: should not assume complete write
                     //sending first the size of the buffer to be allocated

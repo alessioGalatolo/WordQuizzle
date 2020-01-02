@@ -40,61 +40,64 @@ public class Main {
             try(BufferedReader input = new BufferedReader(new InputStreamReader(System.in));
                 SocketChannel client = SocketChannel.open(address)){
 
-                try {
-                    while (true) {
-                        if(incomingChallenge.get()){
-                            incomingChallenge.set(false);
-                            System.out.println("Incoming challenge from " + otherUser + ", accept? (y/n)");
-                            String response = input.readLine();
-                            if(response.toLowerCase().equals("y")){
-                                startChallenge(client, input);
-                            }
-                        }
-                        if(waitingResponse.get() > 0){
-                            waitingResponse.set(0);
+                while (true) {
+                    if (incomingChallenge.get()) {
+                        incomingChallenge.set(false);
+                        System.out.println("Incoming challenge from " + otherUser + ", accept? (y/n)");
+                        String response = input.readLine();
+                        if (response.toLowerCase().equals("y")) {
                             startChallenge(client, input);
                         }
-
-                        String message = input.readLine();
-                        String[] messageFragments = message.split(" ");
-                        switch (messageFragments[0]) {
-                            case "register":
-                                serverObject.registerUser(messageFragments[1], messageFragments[2]);
-                                break;
-                            case "login":
-                                String toWrite = Consts.getRequestLogin(messageFragments[1], messageFragments[2]);
-                                ByteBuffer byteBuffer = ByteBuffer.wrap(toWrite.getBytes(StandardCharsets.UTF_8));
-                                while (byteBuffer.hasRemaining())
-                                    client.write(byteBuffer);
-                                break;
-                            case "logout":
-                                toWrite = Consts.getRequestLogout(messageFragments[1]);
-                                byteBuffer = ByteBuffer.wrap(toWrite.getBytes(StandardCharsets.UTF_8));
-                                while (byteBuffer.hasRemaining())
-                                    client.write(byteBuffer);
-                                break;
-                            case "addFriend":
-                                toWrite = Consts.getRequestAddFriend(messageFragments[1], messageFragments[2]);
-                                byteBuffer = ByteBuffer.wrap(toWrite.getBytes(StandardCharsets.UTF_8));
-                                while (byteBuffer.hasRemaining())
-                                    client.write(byteBuffer);
-                                break;
-                            case "challenge":
-                                thisUser.replace(0, thisUser.length(), messageFragments[1]);
-                                otherUser.replace(0, thisUser.length(), messageFragments[2]);
-                                outgoingChallenge.set(true);
-                                break;
-                                //TODO: add missing commands
-                            default:
-                                System.out.println("Sorry, not recognized");
-                        }
                     }
-                } catch (WQRegister.UserAlreadyRegisteredException e) {
-                    e.printStackTrace();
-                } catch (WQRegister.InvalidPasswordException e) {
-                    e.printStackTrace();
-                }
+                    if (waitingResponse.get() > 0) {
+                        waitingResponse.set(0);
+                        startChallenge(client, input);
+                    }
 
+                    String message = input.readLine();
+                    String[] messageFragments = message.split(" ");
+                    switch (messageFragments[0]) {
+                        case "register":
+                            try {
+                                serverObject.registerUser(messageFragments[1], messageFragments[2]);
+                                System.out.println("Ok");
+                            } catch (WQRegisterInterface.UserAlreadyRegisteredException e){
+                                System.out.println("The given username already exists");
+                            } catch (WQRegisterInterface.InvalidPasswordException e){
+                                System.out.println("Please enter a valid password");
+                            }
+                            break;
+                        case "login":
+                            String toWrite = Consts.getRequestLogin(messageFragments[1], messageFragments[2]);
+                            ByteBuffer byteBuffer = ByteBuffer.wrap(toWrite.getBytes(StandardCharsets.UTF_8));
+                            while (byteBuffer.hasRemaining())
+                                client.write(byteBuffer);
+                            System.out.println(readResponse(client));
+                            break;
+                        case "logout":
+                            toWrite = Consts.getRequestLogout(messageFragments[1]);
+                            byteBuffer = ByteBuffer.wrap(toWrite.getBytes(StandardCharsets.UTF_8));
+                            while (byteBuffer.hasRemaining())
+                                client.write(byteBuffer);
+                            System.out.println(readResponse(client));
+                            break;
+                        case "addFriend":
+                            toWrite = Consts.getRequestAddFriend(messageFragments[1], messageFragments[2]);
+                            byteBuffer = ByteBuffer.wrap(toWrite.getBytes(StandardCharsets.UTF_8));
+                            while (byteBuffer.hasRemaining())
+                                client.write(byteBuffer);
+                            System.out.println(readResponse(client));
+                            break;
+                        case "challenge":
+                            thisUser.replace(0, thisUser.length(), messageFragments[1]);
+                            otherUser.replace(0, thisUser.length(), messageFragments[2]);
+                            outgoingChallenge.set(true);
+                            break;
+                        //TODO: add missing commands
+                        default:
+                            System.out.println("Sorry, not recognized");
+                    }
+                }
             }catch (IOException e) {
                 e.printStackTrace();
             }
@@ -108,6 +111,20 @@ public class Main {
             e.printStackTrace();
         }
 
+    }
+
+    private static String readResponse(SocketChannel client) throws IOException {
+        ByteBuffer intBuffer = ByteBuffer.allocate(Consts.INT_SIZE);
+        client.read(intBuffer);
+        intBuffer.flip();
+
+        ByteBuffer byteBuffer = ByteBuffer.allocate(intBuffer.getInt());
+        byteBuffer.clear();
+
+        //read response
+        client.read(byteBuffer);
+        byteBuffer.flip();
+        return new String(byteBuffer.array(), 0, byteBuffer.remaining(), StandardCharsets.UTF_8);
     }
 
     private static void startChallenge(SocketChannel client, BufferedReader input) {

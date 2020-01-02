@@ -58,10 +58,10 @@ class UserDB {
         User user = usersTable.get(username);
         if(user == null)
             throw new UserNotFoundException();
-        if(user.notMatches(username, password))
-            throw new WQRegisterInterface.InvalidPasswordException();
         if(user.isLogged())
             throw new AlreadyLoggedException();
+        if(user.notMatches(username, password))
+            throw new WQRegisterInterface.InvalidPasswordException();
 
         user.login(address, UDPPort);
     }

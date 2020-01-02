@@ -3,10 +3,7 @@ package Client;
 import Server.Consts;
 
 import java.io.IOException;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetAddress;
-import java.net.SocketException;
+import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -66,6 +63,8 @@ public class UDPClient extends Thread {
                     challengeResponse.set(-1);
                     waitingResponse = false;
                 }
+
+            } catch(SocketTimeoutException e){
 
             } catch (IOException e) {
                 e.printStackTrace();
