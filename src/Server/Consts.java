@@ -8,10 +8,11 @@ public class Consts {
 
     //network constants
     public static final int TCP_PORT = 6000;
+    public static final int TCP_CLIENT_PORT = 6001;
     public static final int RMI_PORT = 7000;
     public static final int UDP_PORT = 8000;
     public static final int SERVER_UDP_PORT = UDP_PORT;
-    public static final int UDP_TIMEOUT = 1000;
+    public static final int UDP_TIMEOUT = 100000;
     public static final String WQ_STUB_NAME = "My word quizzle name";
 
     //implementation constants
@@ -99,8 +100,8 @@ public class Consts {
 
 
     //client request messages
-    public static String getRequestLogin(String username, String password){
-        return Consts.REQUEST_LOGIN + " " + username + " " + password;
+    public static String getRequestLogin(String username, String password, int udpPort){
+        return Consts.REQUEST_LOGIN + " " + username + " " + password + " " + udpPort;
     }
 
     public static String getRequestLogout(String username){

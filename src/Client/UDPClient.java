@@ -5,6 +5,7 @@ import Server.Consts;
 import java.io.IOException;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -39,16 +40,19 @@ public class UDPClient extends Thread {
     @Override
     public void run() {
         byte[] buffer = new byte[Consts.MAX_MESSAGE_LENGTH];
-        DatagramPacket datagramPacket = new DatagramPacket(buffer, buffer.length);
+        DatagramPacket datagramPacket;
         while (!interrupted()) {
             try {
                 if(outgoingChallenge.get()){
                     outgoingChallenge.set(false);
                     byte[] challengeRequest = Consts.getRequestChallenge(thisUser.toString(), otherUser.toString()).getBytes(StandardCharsets.UTF_8);
                     datagramPacket = new DatagramPacket(challengeRequest, challengeRequest.length, InetAddress.getByName(Consts.SERVER_ADDRESS), Consts.SERVER_UDP_PORT);
+                    socket.send(datagramPacket);
+                    System.out.println("Sending " + new String(datagramPacket.getData(), datagramPacket.getOffset(), datagramPacket.getLength(), StandardCharsets.UTF_8));
                     waitingResponse = true;
                 }
 
+                datagramPacket = new DatagramPacket(buffer, buffer.length);
                 socket.receive(datagramPacket);
                 String[] message = new String(datagramPacket.getData(), 0, datagramPacket.getLength(), StandardCharsets.UTF_8).split(" ");
                 String command = message[0];
@@ -62,13 +66,21 @@ public class UDPClient extends Thread {
                 }else if(waitingResponse && command.equals(Consts.RESPONSE_CHALLENGE_REFUSED)){
                     challengeResponse.set(-1);
                     waitingResponse = false;
+                }else{
+                    //error
+                    //TODO: change error handling
+                    System.out.println(Arrays.toString(message));
                 }
 
-            } catch(SocketTimeoutException e){
+            } catch(SocketTimeoutException ignored){
 
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
+    }
+
+    public int getUDPPort() {
+        return socket.getLocalPort();
     }
 }

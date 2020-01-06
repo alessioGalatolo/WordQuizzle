@@ -6,6 +6,7 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 /**
  * Class that manages the UDP server
@@ -32,6 +33,7 @@ public class UDPServer extends Thread {
 
                     //get message string
                     String[] messageFragments = new String(buffer, 0, request.getLength(), StandardCharsets.UTF_8).split(" ");
+                    System.out.println("Received " + Arrays.toString(messageFragments));
                     if(!messageFragments[0].equals(Consts.REQUEST_CHALLENGE)){
                         //wrong request
                         sendErrorMessage(datagramSocket, Consts.RESPONSE_UNKNOWN_REQUEST, request.getAddress(), request.getPort());
@@ -74,6 +76,7 @@ public class UDPServer extends Thread {
     private void sendErrorMessage(DatagramSocket datagramSocket, String errorMessage, InetAddress address, int port) throws IOException {
         byte[] response = errorMessage.getBytes(StandardCharsets.UTF_8);
         DatagramPacket errorPacket = new DatagramPacket(response, response.length, address, port);
+        System.out.println("Sending " + errorMessage);
         datagramSocket.send(errorPacket);
 
     }

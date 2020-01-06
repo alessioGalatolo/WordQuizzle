@@ -90,6 +90,8 @@ class UserDB {
     }
 
 
+
+    //TODO: fix -> a user can add a friendship between other users if they are all logged
     /**
      * Creates a friendship between the given user
      * @param nick1 The user who requested the friendship
@@ -167,7 +169,9 @@ class UserDB {
 
         //TODO: move outside of database
         //send challenge request to the other user
-        byte[] challengeRequest = (Consts.REQUEST_CHALLENGE + " " + challengerName).getBytes(StandardCharsets.UTF_8); //TODO: check correct spacing
+        String message = (Consts.REQUEST_CHALLENGE + " " + challengerName);
+        System.out.println("Sent " + message + " to " + challenged.getAddress());
+        byte[] challengeRequest = message.getBytes(StandardCharsets.UTF_8); //TODO: check correct spacing
         DatagramPacket packet = new DatagramPacket(challengeRequest, challengeRequest.length, challenged.getAddress(), challenged.getUDPPort());
 
         try {

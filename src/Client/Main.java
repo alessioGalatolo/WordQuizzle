@@ -68,7 +68,7 @@ public class Main {
                             }
                             break;
                         case "login":
-                            String toWrite = Consts.getRequestLogin(messageFragments[1], messageFragments[2]);
+                            String toWrite = Consts.getRequestLogin(messageFragments[1], messageFragments[2], udpClient.getUDPPort());
                             ByteBuffer byteBuffer = ByteBuffer.wrap(toWrite.getBytes(StandardCharsets.UTF_8));
                             while (byteBuffer.hasRemaining())
                                 client.write(byteBuffer);

@@ -42,6 +42,7 @@ public class WriteTask implements Runnable {
                 } else if (selectionKey.attachment() instanceof byte[]) {
                     //previous operation was a read, serving request then sending response
                     String message = new String((byte[]) selectionKey.attachment(), StandardCharsets.UTF_8);
+                    System.out.println("Received: " + message);
                     String[] messageFragments = message.split(" ");
 
                     String response = "";

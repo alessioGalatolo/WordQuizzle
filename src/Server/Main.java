@@ -30,7 +30,7 @@ public class Main {
             UDPServer udpServer = new UDPServer();
             udpServer.start();
 
-            ThreadPoolExecutor threadPool = (ThreadPoolExecutor) Executors.newFixedThreadPool(Consts.SERVER_THREADS);
+            ThreadPoolExecutor threadPool = (ThreadPoolExecutor) Executors.newFixedThreadPool(1);//TODO: return to multi thread (multi responses with mt)
 
 
 
