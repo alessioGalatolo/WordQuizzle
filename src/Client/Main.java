@@ -17,85 +17,89 @@ import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class Main {
+
     public static void main(String[] args) {
         try {
             Registry r = LocateRegistry.getRegistry(Consts.RMI_PORT);
             WQRegisterInterface serverObject = (WQRegisterInterface) r.lookup(Consts.WQ_STUB_NAME); //get remote object
 
             AtomicBoolean incomingChallenge = new AtomicBoolean(false);
-            AtomicBoolean outgoingChallenge = new AtomicBoolean(false);
-            AtomicInteger waitingResponse = new AtomicInteger(0);
-            StringBuffer thisUser = new StringBuffer();
-            StringBuffer otherUser = new StringBuffer();
 
-            UDPClient udpClient = new UDPClient(incomingChallenge, outgoingChallenge, waitingResponse, thisUser, otherUser);
-            udpClient.start();
 
             //socket init
             SocketAddress address = new InetSocketAddress(Consts.TCP_PORT);
 
             try(BufferedReader input = new BufferedReader(new InputStreamReader(System.in));
-                SocketChannel client = SocketChannel.open(address)){
+                SocketChannel client = SocketChannel.open(address);
+                UDPClient udpClient = new UDPClient(incomingChallenge, (String otherUser) -> {
+                    //function to be used when a new challenge message arrives
+                    //returns whether or not the challenge has been accepted
+                    try {
+                        System.out.println("Incoming challenge from " + otherUser + ", accept? (y/n)");
+                        String response = input.readLine();
+                        return response.toLowerCase().equals("y");
+                    }catch (IOException e){
+                        e.printStackTrace();
+                    }
+                    return false;})
+            ){
 
                 while (true) {
                     if (incomingChallenge.get()) {
                         incomingChallenge.set(false);
-                        System.out.println("Incoming challenge from " + otherUser + ", accept? (y/n)");
-                        String response = input.readLine();
-                        if (response.toLowerCase().equals("y")) {
-                            startChallenge(client, input);
-                        }
-                    }
-                    if (waitingResponse.get() > 0) {
-                        waitingResponse.set(0);
-                        startChallenge(client, input);
+                        startChallenge(client, input, udpClient.getLatestMatchId());
                     }
 
-                    String message = input.readLine();
-                    String[] messageFragments = message.split(" ");
-                    switch (messageFragments[0]) {
-                        case "register":
-                            try {
-                                serverObject.registerUser(messageFragments[1], messageFragments[2]);
-                                System.out.println("Ok");
-                            } catch (WQRegisterInterface.UserAlreadyRegisteredException e){
-                                System.out.println("The given username already exists");
-                            } catch (WQRegisterInterface.InvalidPasswordException e){
-                                System.out.println("Please enter a valid password");
-                            }
-                            break;
-                        case "login":
-                            String toWrite = Consts.getRequestLogin(messageFragments[1], messageFragments[2], udpClient.getUDPPort());
-                            ByteBuffer byteBuffer = ByteBuffer.wrap(toWrite.getBytes(StandardCharsets.UTF_8));
-                            while (byteBuffer.hasRemaining())
-                                client.write(byteBuffer);
-                            System.out.println(readResponse(client));
-                            break;
-                        case "logout":
-                            toWrite = Consts.getRequestLogout(messageFragments[1]);
-                            byteBuffer = ByteBuffer.wrap(toWrite.getBytes(StandardCharsets.UTF_8));
-                            while (byteBuffer.hasRemaining())
-                                client.write(byteBuffer);
-                            System.out.println(readResponse(client));
-                            break;
-                        case "addFriend":
-                            toWrite = Consts.getRequestAddFriend(messageFragments[1], messageFragments[2]);
-                            byteBuffer = ByteBuffer.wrap(toWrite.getBytes(StandardCharsets.UTF_8));
-                            while (byteBuffer.hasRemaining())
-                                client.write(byteBuffer);
-                            System.out.println(readResponse(client));
-                            break;
-                        case "challenge":
-                            thisUser.replace(0, thisUser.length(), messageFragments[1]);
-                            otherUser.replace(0, thisUser.length(), messageFragments[2]);
-                            outgoingChallenge.set(true);
-                            break;
-                        //TODO: add missing commands
-                        default:
-                            System.out.println("Sorry, not recognized");
+                    //TODO: avoid active wait
+                    if(input.ready()) {
+                        String message = input.readLine();
+                        String[] messageFragments = message.split(" ");
+                        switch (messageFragments[0]) {
+                            case "register":
+                                try {
+                                    serverObject.registerUser(messageFragments[1], messageFragments[2]);
+                                    System.out.println("Ok");
+                                } catch (WQRegisterInterface.UserAlreadyRegisteredException e) {
+                                    System.out.println("The given username already exists");
+                                } catch (WQRegisterInterface.InvalidPasswordException e) {
+                                    System.out.println("Please enter a valid password");
+                                }
+                                break;
+                            case "login":
+                                String toWrite = Consts.getRequestLogin(messageFragments[1], messageFragments[2], udpClient.getUDPPort());
+                                ByteBuffer byteBuffer = ByteBuffer.wrap(toWrite.getBytes(StandardCharsets.UTF_8));
+                                while (byteBuffer.hasRemaining())
+                                    client.write(byteBuffer);
+                                System.out.println(readResponse(client));
+                                break;
+                            case "logout":
+                                toWrite = Consts.getRequestLogout(messageFragments[1]);
+                                byteBuffer = ByteBuffer.wrap(toWrite.getBytes(StandardCharsets.UTF_8));
+                                while (byteBuffer.hasRemaining())
+                                    client.write(byteBuffer);
+                                System.out.println(readResponse(client));
+                                break;
+                            case "addFriend":
+                                toWrite = Consts.getRequestAddFriend(messageFragments[1], messageFragments[2]);
+                                byteBuffer = ByteBuffer.wrap(toWrite.getBytes(StandardCharsets.UTF_8));
+                                while (byteBuffer.hasRemaining())
+                                    client.write(byteBuffer);
+                                System.out.println(readResponse(client));
+                                break;
+                            case "challenge":
+
+                                //request the challenge, method will return with the answer from other user
+                                if(udpClient.requestChallenge(messageFragments[1], messageFragments[2])){
+                                    startChallenge(client, input, udpClient.getLatestMatchId());
+                                }else
+                                    System.out.println("The challenge was refused or the timeout has expired");
+                                break;
+                            //TODO: add missing commands
+                            default:
+                                System.out.println("Sorry, not recognized");
+                        }
                     }
                 }
             }catch (IOException e) {
@@ -127,8 +131,10 @@ public class Main {
         return new String(byteBuffer.array(), 0, byteBuffer.remaining(), StandardCharsets.UTF_8);
     }
 
-    private static void startChallenge(SocketChannel client, BufferedReader input) {
-        byte[] byteMessage = Consts.REQUEST_READY_FOR_CHALLENGE.getBytes(StandardCharsets.UTF_8);
+    private static void startChallenge(SocketChannel client, BufferedReader input, int matchId) {
+
+
+        byte[] byteMessage = (Consts.REQUEST_READY_FOR_CHALLENGE + " " + matchId).getBytes(StandardCharsets.UTF_8);
         ByteBuffer messageBuffer = ByteBuffer.wrap(byteMessage);
 
         try {
@@ -151,7 +157,7 @@ public class Main {
                     if (messageFragments[0].equals(Consts.RESPONSE_NEXT_WORD)) {
                         System.out.println("Next word to be translated is: " + messageFragments[2]);
                         String translatedWord = input.readLine();
-                        String translationMessage = Consts.getTranslationResponseClient(Integer.parseInt(messageFragments[1]), messageFragments[2], translatedWord);
+                        String translationMessage = Consts.getTranslationResponseClient(matchId, messageFragments[2], translatedWord);
                         messageBuffer = ByteBuffer.wrap(translationMessage.getBytes(StandardCharsets.UTF_8));
 
                         //send translated word
@@ -164,6 +170,7 @@ public class Main {
                         System.out.println("Last translation was incorrect");
                     } else if (messageFragments[0].equals("timeout")){
                         //TODO: add timeout case
+                        System.out.println("Timeout!");
                     }
 
                 }

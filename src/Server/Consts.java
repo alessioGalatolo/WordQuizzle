@@ -12,7 +12,8 @@ public class Consts {
     public static final int RMI_PORT = 7000;
     public static final int UDP_PORT = 8000;
     public static final int SERVER_UDP_PORT = UDP_PORT;
-    public static final int UDP_TIMEOUT = 100000;
+    public static final int UDP_SERVER_TIMEOUT = 100000;
+    public static final int UDP_CLIENT_TIMEOUT = 1000;
     public static final String WQ_STUB_NAME = "My word quizzle name";
 
     //implementation constants

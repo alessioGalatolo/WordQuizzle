@@ -150,6 +150,7 @@ class UserDB {
      * @throws NotLoggedException If the challenger is not logged
      * @throws SameUserException If the two user are the same
      */
+    //TODO: fix username swap
     static void challengeFriend(String challengerName, String challengedName, DatagramSocket datagramSocket) throws UserNotFoundException, NotFriendsException, NotLoggedException, SameUserException {
         if(challengedName.equals(challengerName))
             throw new SameUserException();
@@ -170,16 +171,18 @@ class UserDB {
         //TODO: move outside of database
         //send challenge request to the other user
         String message = (Consts.REQUEST_CHALLENGE + " " + challengerName);
-        System.out.println("Sent " + message + " to " + challenged.getAddress());
+        System.out.println("Sent " + message + " to " + challenged.getAddress() + " " + challenged.getUDPPort());
         byte[] challengeRequest = message.getBytes(StandardCharsets.UTF_8); //TODO: check correct spacing
         DatagramPacket packet = new DatagramPacket(challengeRequest, challengeRequest.length, challenged.getAddress(), challenged.getUDPPort());
 
         try {
-            datagramSocket.send(packet);
 
+            datagramSocket.send(packet);
 
             //wait for ok response
             try {
+
+                //TODO: fix error if a new challenge arrives
                 datagramSocket.receive(packet);
                 String response = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8);
                 if(response.toLowerCase().startsWith(Consts.RESPONSE_OK.toLowerCase())){

@@ -20,7 +20,7 @@ public class UDPServer extends Thread {
 
         try {
             DatagramSocket datagramSocket = new DatagramSocket(Consts.UDP_PORT);
-            datagramSocket.setSoTimeout(Consts.UDP_TIMEOUT);
+            datagramSocket.setSoTimeout(Consts.UDP_SERVER_TIMEOUT);
 
             byte[] buffer = new byte[Consts.ARRAY_INIT_SIZE];
             DatagramPacket request = new DatagramPacket(buffer, buffer.length);
