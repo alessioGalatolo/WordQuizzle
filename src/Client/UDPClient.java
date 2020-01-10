@@ -65,7 +65,7 @@ public class UDPClient implements AutoCloseable{
                             waitingChallengeStart = true;
 
                         } else {
-                            //TODO: send error
+                            //TODO: send error, user refused challenge
                         }
 
                     } else if(waitingChallengeStart && messageFragments[0].equals(Consts.RESPONSE_OK)) {

@@ -29,6 +29,8 @@ public class Consts {
     private static final int CHALLENGE_TIME_PER_WORD = 2000; //in ms
     public static final long CHALLENGE_TIMEOUT = CHALLENGE_WORDS_TO_MATCH * CHALLENGE_TIME_PER_WORD;
     public static final String CHALLENGE_OK = "Ok";
+    public static final String CHALLENGE_REFUSED = "challenge_refused";
+    public static final long CHALLENGE_REQUEST_TIMEOUT = 2000; //time to wait before a challenge request expires
     public static final String CHALLENGE_WORD_MISMATCH = "FAIL"; //when the user sends a wrong translation
     public static final int ITALIAN_WORD_MAX_LENGTH = 29; //https://www.focus.it/cultura/curiosita/qual-e-la-parola-piu-lunga-della-lingua-italiana
     public static final int WIN_SCORE_AMOUNT = 3;

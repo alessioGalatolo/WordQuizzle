@@ -229,14 +229,14 @@ class ChallengeHandler {
         String getNextWord(String user) throws EndOfMatchException {
             if(user.equals(user1)) {
                 if(user1Timestamp == 0)
-                    user1Timestamp = System.currentTimeMillis();
+                    user1Timestamp = System.nanoTime();
                 if(user1Index < Consts.CHALLENGE_WORDS_TO_MATCH)
                     return selectedWords[user1Index++];
                 else
                     throw new EndOfMatchException();
             }else if(user.equals(user2)) {
                 if (user2Timestamp == 0)
-                    user2Timestamp = System.currentTimeMillis();
+                    user2Timestamp = System.nanoTime();
                 return selectedWords[user2Index++];
             }
             return null; //no username match
@@ -254,13 +254,13 @@ class ChallengeHandler {
 
         void updateScore(String user, int amount) throws GameTimeoutException {
             if(user.equals(user1)) {
-                if(System.currentTimeMillis() - user1Timestamp < Consts.CHALLENGE_TIMEOUT)
+                if(System.nanoTime() - user1Timestamp < Consts.CHALLENGE_TIMEOUT)
                     user1Score += amount;
                 else
                     throw new GameTimeoutException();
             }
             else if(user.equals(user2)) {
-                if(System.currentTimeMillis() - user2Timestamp < Consts.CHALLENGE_TIMEOUT)
+                if(System.nanoTime() - user2Timestamp < Consts.CHALLENGE_TIMEOUT)
                     user2Score += amount;
                 else
                     throw new GameTimeoutException();

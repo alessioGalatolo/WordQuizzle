@@ -11,6 +11,7 @@ import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -22,6 +23,12 @@ class UserDB {
 
     static private ConcurrentHashMap<String, User> usersTable = new ConcurrentHashMap<>();
     static private SimpleGraph relationsGraph = new SimpleGraph();
+
+    //temporarily stores all the user involved in pending challenges for fast retrieval
+    static private ConcurrentHashMap<SocketAddress, String> pendingChallenges = new ConcurrentHashMap<>();
+    //TODO: join the two hash map
+    static private ConcurrentHashMap<String, Long> challengeTimeouts = new ConcurrentHashMap<>(); //keeps the timeout
+
 
 
     //TODO: add save to file
@@ -141,17 +148,17 @@ class UserDB {
     }
 
     /**
-     * Sends a challenge request to the challenged user, instantiates the challenge and send confirmation messages through udp
+     * Creates a pending challenge
      * @param challengerName
      * @param challengedName
-     * @param datagramSocket The UDP socket of the server
      * @throws UserNotFoundException If the user were not found
      * @throws NotFriendsException If the two users are not friends
      * @throws NotLoggedException If the challenger is not logged
      * @throws SameUserException If the two user are the same
+     * @return The datagram packet to be sent to the user who got challenged
      */
     //TODO: fix username swap
-    static void challengeFriend(String challengerName, String challengedName, DatagramSocket datagramSocket) throws UserNotFoundException, NotFriendsException, NotLoggedException, SameUserException {
+    static DatagramPacket challengeFriend(String challengerName, String challengedName) throws UserNotFoundException, NotFriendsException, NotLoggedException, SameUserException {
         if(challengedName.equals(challengerName))
             throw new SameUserException();
 
@@ -168,59 +175,74 @@ class UserDB {
         if(challenger.isNotLogged() || challenged.isNotLogged())
             throw new NotLoggedException();
 
-        //TODO: move outside of database
         //send challenge request to the other user
         String message = (Consts.REQUEST_CHALLENGE + " " + challengerName);
         System.out.println("Sent " + message + " to " + challenged.getAddress() + " " + challenged.getUDPPort());
         byte[] challengeRequest = message.getBytes(StandardCharsets.UTF_8); //TODO: check correct spacing
-        DatagramPacket packet = new DatagramPacket(challengeRequest, challengeRequest.length, challenged.getAddress(), challenged.getUDPPort());
 
-        try {
+        DatagramPacket requestPacket = new DatagramPacket(challengeRequest, challengeRequest.length, challenged.getAddress(), challenged.getUDPPort());
 
-            datagramSocket.send(packet);
+        pendingChallenges.put(requestPacket.getSocketAddress(), challengedName);
+        pendingChallenges.put(new InetSocketAddress(challenger.getAddress(), challenger.getUDPPort()), challengerName);
+        challengeTimeouts.put(challengerName, System.nanoTime());
 
-            //wait for ok response
-            try {
-
-                //TODO: fix error if a new challenge arrives
-                datagramSocket.receive(packet);
-                String response = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8);
-                if(response.toLowerCase().startsWith(Consts.RESPONSE_OK.toLowerCase())){
-                    //sending confirmation to both player with match ID
-                    int matchId = ChallengeHandler.getInstance().createChallenge(challengerName, challengedName);
-                    byte[] confirmationResponse = (Consts.RESPONSE_OK + " " + matchId).getBytes(StandardCharsets.UTF_8);
-                    packet = new DatagramPacket(confirmationResponse, confirmationResponse.length, challenger.getAddress(), challenger.getUDPPort());
-                    datagramSocket.send(packet);
-                    packet = new DatagramPacket(confirmationResponse, confirmationResponse.length, challenged.getAddress(), challenged.getUDPPort());
-                    datagramSocket.send(packet);
-                    //TODO: add matchId to both player list of challenges
-
-                    usersTable.get(challengerName).addMatch(matchId);
-                    usersTable.get(challengedName).addMatch(matchId);
-
-                }else{
-                    sendErrorMessage(datagramSocket, challenger);
-                    sendErrorMessage(datagramSocket, challenged);
-                }
-
-            }catch (SocketTimeoutException e){
-                sendErrorMessage(datagramSocket, challenger);
-                sendErrorMessage(datagramSocket, challenged);
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-
+        return requestPacket;
     }
 
-    private static void sendErrorMessage(DatagramSocket datagramSocket, User user) throws IOException {
-        //no response
-        byte[] errorMessage = Consts.RESPONSE_CHALLENGE_REFUSED.getBytes(StandardCharsets.UTF_8);
-        DatagramPacket packet = new DatagramPacket(errorMessage, errorMessage.length, user.getAddress(), user.getUDPPort());
+    /**
+     * Creates the challenge and returns the confirmation message to be sent
+     * back to the users
+     * @param challengerAddress The user who started the challenge address
+     * @param challengedAddress The user who has been challenged address
+     * @return byte array containing the confirmation message and the match ID
+     * @throws UserNotFoundException When one of the given address is not bounded to any user
+     */
+    static byte[] getChallengeConfirm(SocketAddress challengerAddress, SocketAddress challengedAddress) throws UserNotFoundException, ChallengeRequestTimeoutException {
+        String challengerName = pendingChallenges.get(challengerAddress);
+        String challengedName = pendingChallenges.get(challengedAddress);
+        pendingChallenges.remove(challengerAddress);
+        pendingChallenges.remove(challengedAddress);
 
-        datagramSocket.send(packet);
-        //end of communication
+        if(challengerName == null || challengedName == null)
+            throw new UserNotFoundException();
+
+        long challengeInitialTime = challengeTimeouts.get(challengerName);
+        challengeTimeouts.remove(challengerName);
+
+        if(System.nanoTime() - challengeInitialTime > Consts.CHALLENGE_REQUEST_TIMEOUT)
+            throw new ChallengeRequestTimeoutException();
+
+        int matchId = ChallengeHandler.getInstance().createChallenge(challengerName, challengedName);
+
+        usersTable.get(challengerName).addMatch(matchId);
+        usersTable.get(challengedName).addMatch(matchId);
+
+        return (Consts.RESPONSE_OK + " " + matchId).getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Invalidates the pending challenge related to the two user
+     * @param challengerAddress The user who started the challenge address
+     * @param challengedAddress The user who has been challenged address
+     * @return The datagram packet to be sent to the user who started the challenge
+     * @throws UserNotFoundException When one of the given address is not bounded to any user
+     */
+    static DatagramPacket discardChallenge(SocketAddress challengerAddress, SocketAddress challengedAddress) throws UserNotFoundException {
+        String challengerName = pendingChallenges.get(challengerAddress);
+        String challengedName = pendingChallenges.get(challengedAddress);
+        pendingChallenges.remove(challengerAddress);
+        pendingChallenges.remove(challengedAddress);
+
+        if(challengerName == null)
+            throw new UserNotFoundException();
+
+        challengeTimeouts.remove(challengerName);
+
+        if(challengedName == null)
+            throw new UserNotFoundException();
+
+        byte[] errorMessage = Consts.RESPONSE_CHALLENGE_REFUSED.getBytes(StandardCharsets.UTF_8);
+        return new DatagramPacket(errorMessage, errorMessage.length, challengerAddress);
     }
 
     /**
@@ -251,6 +273,7 @@ class UserDB {
         Gson gson = new Gson();
         return gson.toJson(ranking);
     }
+
 
 
     /**
@@ -390,5 +413,8 @@ class UserDB {
     }
 
     static class SameUserException extends Exception{
+    }
+
+    static class ChallengeRequestTimeoutException extends Exception {
     }
 }
