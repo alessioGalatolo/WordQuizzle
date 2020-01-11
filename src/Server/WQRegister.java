@@ -12,7 +12,7 @@ public class WQRegister extends RemoteServer implements WQRegisterInterface {
 
     @Override
     public boolean registerUser(String username, String password) throws RemoteException, WQRegisterInterface.UserAlreadyRegisteredException, WQRegisterInterface.InvalidPasswordException {
-        UserDB.addUser(username, password);
+        UserDB.instance.addUser(username, password);
         return true;
     }
 }

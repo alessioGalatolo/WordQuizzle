@@ -50,7 +50,7 @@ public class UDPServer extends Thread {
                             String errorMessage = null;//stores, eventually, the error message
 
                             try {
-                                DatagramPacket challengePacket = UserDB.challengeFriend(challenger, challenged);
+                                DatagramPacket challengePacket = UserDB.instance.challengeFriend(challenger, challenged);
                                 socket.send(challengePacket);
 
                                 challengedAddress = challengePacket.getSocketAddress();
@@ -86,7 +86,7 @@ public class UDPServer extends Thread {
 
                             try {
                                 //send ok message to both user
-                                byte[] confirmationResponse = UserDB.getChallengeConfirm(challengerAddress, challengedAddress);
+                                byte[] confirmationResponse = UserDB.instance.getChallengeConfirm(challengerAddress, challengedAddress);
 
                                 DatagramPacket challengeConfirmationPacket = new DatagramPacket(confirmationResponse, confirmationResponse.length, challengedAddress);
                                 System.out.println(new String(challengeConfirmationPacket.getData(), 0, challengeConfirmationPacket.getLength(), StandardCharsets.UTF_8));
@@ -114,7 +114,7 @@ public class UDPServer extends Thread {
 
                             try {
 
-                                DatagramPacket challengeRefusedPacket = UserDB.discardChallenge(challengerAddress, challengedAddress);
+                                DatagramPacket challengeRefusedPacket = UserDB.instance.discardChallenge(challengerAddress, challengedAddress);
                                 socket.send(challengeRefusedPacket);
 
                             } catch (UserDB.UserNotFoundException e) {

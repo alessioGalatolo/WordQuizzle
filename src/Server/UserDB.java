@@ -3,14 +3,26 @@ package Server;
 import Commons.WQRegisterInterface;
 import com.google.gson.Gson;
 
-import java.net.*;
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 
 /**
  * Class representing and collecting the users and their relations. Handles all the operations involving users
@@ -18,17 +30,46 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Package private class, the class and the member can only be called by the Server components
  */
 class UserDB {
+    static UserDB instance;
+    static {
+        try(BufferedReader bufferedReader = new BufferedReader(new FileReader(Consts.USER_DB_FILENAME))) {
+            Gson gson = new Gson();
+            instance = gson.fromJson(bufferedReader, UserDB.class);
+            instance.logoutAll();
+        } catch (FileNotFoundException e) {
+            //file doesn't exist yet
+            instance = new UserDB();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
-    static private ConcurrentHashMap<String, User> usersTable = new ConcurrentHashMap<>();
-    static private SimpleGraph relationsGraph = new SimpleGraph();
+    private void logoutAll() {
+        usersTable.forEach((s, user) -> user.logout());
+    }
+
+    private ConcurrentHashMap<String, User> usersTable = new ConcurrentHashMap<>();
+    private SimpleGraph relationsGraph = new SimpleGraph();
 
     //temporarily stores all the user involved in pending challenges for fast retrieval
-    static private ConcurrentHashMap<SocketAddress, String> pendingChallenges = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<SocketAddress, String> pendingChallenges = new ConcurrentHashMap<>();
     //TODO: join the two hash map
-    static private ConcurrentHashMap<String, Long> challengeTimeouts = new ConcurrentHashMap<>(); //keeps the timeout
+    private ConcurrentHashMap<String, Long> challengeTimeouts = new ConcurrentHashMap<>(); //keeps the timeout
 
 
-    //TODO: add save to file
+    void storeToFile(){
+        Gson gson = new Gson();
+        byte[] jsonFile = gson.toJson(instance).getBytes(StandardCharsets.UTF_8);
+        ByteBuffer byteBuffer = ByteBuffer.wrap(jsonFile);
+        try(FileChannel fileChannel = FileChannel.open(Paths.get(Consts.USER_DB_FILENAME), StandardOpenOption.WRITE, StandardOpenOption.CREATE)){
+            while (byteBuffer.hasRemaining()){
+                fileChannel.write(byteBuffer);
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
     /**
      * Add a user the the database
@@ -37,7 +78,7 @@ class UserDB {
      * @throws WQRegisterInterface.UserAlreadyRegisteredException When the username is already present in the DB
      * @throws WQRegisterInterface.InvalidPasswordException When the password is blank or null
      */
-    static void addUser(String username, String password) throws WQRegisterInterface.UserAlreadyRegisteredException, WQRegisterInterface.InvalidPasswordException {
+    void addUser(String username, String password) throws WQRegisterInterface.UserAlreadyRegisteredException, WQRegisterInterface.InvalidPasswordException {
         if(usersTable.containsKey(username))
             throw new WQRegisterInterface.UserAlreadyRegisteredException();
         if(password == null || password.isBlank())//isBlank() requires java 11
@@ -58,7 +99,7 @@ class UserDB {
      * @throws WQRegisterInterface.InvalidPasswordException When the given password doesn't match the original one
      * @throws AlreadyLoggedException When the user is already logged
      */
-    static void logUser(String username, String password, InetAddress address, int UDPPort) throws UserNotFoundException, WQRegisterInterface.InvalidPasswordException, AlreadyLoggedException {
+    void logUser(String username, String password, InetAddress address, int UDPPort) throws UserNotFoundException, WQRegisterInterface.InvalidPasswordException, AlreadyLoggedException {
         User user = usersTable.get(username);
         if(user == null)
             throw new UserNotFoundException();
@@ -79,7 +120,7 @@ class UserDB {
      * @throws WQRegisterInterface.InvalidPasswordException When the given password doesn't match the original one
      * @throws AlreadyLoggedException When the user is already logged
      */
-    static void logUser(String username, String password, InetAddress address) throws UserNotFoundException, WQRegisterInterface.InvalidPasswordException, AlreadyLoggedException {
+    void logUser(String username, String password, InetAddress address) throws UserNotFoundException, WQRegisterInterface.InvalidPasswordException, AlreadyLoggedException {
         logUser(username, password, address, Consts.UDP_PORT);
     }
 
@@ -89,7 +130,7 @@ class UserDB {
      * @throws UserNotFoundException If the user could not be found
      * @throws NotLoggedException If the user is not logged in (currently disabled)
      */
-    static void logoutUser(String username) throws UserNotFoundException, NotLoggedException {
+    void logoutUser(String username) throws UserNotFoundException, NotLoggedException {
         User user = usersTable.get(username);
         if(user == null)
             throw new UserNotFoundException();
@@ -113,7 +154,7 @@ class UserDB {
      * @throws NotLoggedException If the requesting user is not logged
      * @throws SameUserException If the nick provided are the same
      */
-    static void addFriendship(String username1, String username2) throws UserNotFoundException, AlreadyFriendsException, NotLoggedException, SameUserException {
+    void addFriendship(String username1, String username2) throws UserNotFoundException, AlreadyFriendsException, NotLoggedException, SameUserException {
         if(username1.equals(username2))
             throw new SameUserException();
 
@@ -137,7 +178,7 @@ class UserDB {
      * @throws UserNotFoundException If the given user were not found
      * @throws NotLoggedException If the given user is not logged in
      */
-    static String getFriends(String username) throws UserNotFoundException, NotLoggedException {
+    String getFriends(String username) throws UserNotFoundException, NotLoggedException {
         User friendlyUser = usersTable.get(username);
 
         if (friendlyUser == null)
@@ -163,7 +204,7 @@ class UserDB {
      * @return The datagram packet to be sent to the user who got challenged
      */
     //TODO: fix username swap
-    static DatagramPacket challengeFriend(String challengerName, String challengedName) throws UserNotFoundException, NotFriendsException, NotLoggedException, SameUserException {
+    DatagramPacket challengeFriend(String challengerName, String challengedName) throws UserNotFoundException, NotFriendsException, NotLoggedException, SameUserException {
         if(challengedName.equals(challengerName))
             throw new SameUserException();
 
@@ -202,7 +243,7 @@ class UserDB {
      * @return byte array containing the confirmation message and the match ID
      * @throws UserNotFoundException When one of the given address is not bounded to any user
      */
-    static byte[] getChallengeConfirm(SocketAddress challengerAddress, SocketAddress challengedAddress) throws UserNotFoundException, ChallengeRequestTimeoutException {
+    byte[] getChallengeConfirm(SocketAddress challengerAddress, SocketAddress challengedAddress) throws UserNotFoundException, ChallengeRequestTimeoutException {
         String challengerName = pendingChallenges.get(challengerAddress);
         String challengedName = pendingChallenges.get(challengedAddress);
         pendingChallenges.remove(challengerAddress);
@@ -237,7 +278,7 @@ class UserDB {
      * @return The datagram packet to be sent to the user who started the challenge
      * @throws UserNotFoundException When one of the given address is not bounded to any user
      */
-    static DatagramPacket discardChallenge(SocketAddress challengerAddress, SocketAddress challengedAddress) throws UserNotFoundException {
+    DatagramPacket discardChallenge(SocketAddress challengerAddress, SocketAddress challengedAddress) throws UserNotFoundException {
         String challengerName = pendingChallenges.get(challengerAddress);
         String challengedName = pendingChallenges.get(challengedAddress);
         pendingChallenges.remove(challengerAddress);
@@ -260,7 +301,7 @@ class UserDB {
      * @param name The name of the user
      * @return The score of the given user
      */
-    static int getScore(String name){
+    int getScore(String name){
         User user = usersTable.get(name);
 
         return user.getScore();
@@ -271,7 +312,7 @@ class UserDB {
      * @param name The name of the user
      * @return A json object of a string array with name and ranking of each user
      */
-    static String getRanking(String name){
+    String getRanking(String name){
         User user = usersTable.get(name);
         User[] friends = relationsGraph.getLinkedNodes(user).toArray(new User[0]); //get array for faster access
         Arrays.sort(friends, Comparator.comparingInt(User::getScore));//sort by the score

@@ -53,29 +53,29 @@ public class WriteTask implements Runnable {
                         switch (messageFragments[0]) {
                             case Consts.REQUEST_LOGIN:
                                 if (messageFragments.length > 3)
-                                    UserDB.logUser(messageFragments[1], messageFragments[2],
+                                    UserDB.instance.logUser(messageFragments[1], messageFragments[2],
                                             ((InetSocketAddress) socketChannel.getRemoteAddress()).getAddress(),
                                             Integer.parseInt(messageFragments[3]));
                                 else
-                                    UserDB.logUser(messageFragments[1], messageFragments[2], ((InetSocketAddress) socketChannel.getRemoteAddress()).getAddress());
+                                    UserDB.instance.logUser(messageFragments[1], messageFragments[2], ((InetSocketAddress) socketChannel.getRemoteAddress()).getAddress());
 
                                 response = Consts.RESPONSE_OK;
                                 break;
 
                             case Consts.REQUEST_LOGOUT:
-                                UserDB.logoutUser(messageFragments[1]);
+                                UserDB.instance.logoutUser(messageFragments[1]);
                                 response = Consts.RESPONSE_OK;
                                 break;
 
                             case Consts.REQUEST_ADD_FRIEND:
-                                UserDB.addFriendship(messageFragments[1], messageFragments[2]);
+                                UserDB.instance.addFriendship(messageFragments[1], messageFragments[2]);
                                 response = Consts.RESPONSE_OK;
 //                                response = Consts.RESPONSE_USER_NOT_FOUND; //TODO: check if user1 or user2
 
                                 break;
 
                             case Consts.REQUEST_FRIEND_LIST:
-                                response = UserDB.getFriends(messageFragments[1]);
+                                response = UserDB.instance.getFriends(messageFragments[1]);
                                 break;
 
                             case Consts.REQUEST_CHALLENGE:
@@ -83,11 +83,11 @@ public class WriteTask implements Runnable {
                                 break;
 
                             case Consts.REQUEST_SCORE:
-                                response = String.valueOf(UserDB.getScore(messageFragments[1]));
+                                response = String.valueOf(UserDB.instance.getScore(messageFragments[1]));
                                 break;
 
                             case Consts.REQUEST_RANKINGS:
-                                response = UserDB.getRanking(messageFragments[1]);
+                                response = UserDB.instance.getRanking(messageFragments[1]);
                                 break;
 
                             /*
@@ -176,6 +176,7 @@ public class WriteTask implements Runnable {
         }catch(IOException e){
             e.printStackTrace();
         }
+        UserDB.instance.storeToFile();
     }
 
 
