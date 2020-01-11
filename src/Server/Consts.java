@@ -8,11 +8,10 @@ public class Consts {
 
     //network constants
     public static final int TCP_PORT = 6000;
-    public static final int TCP_CLIENT_PORT = 6001;
     public static final int RMI_PORT = 7000;
     public static final int UDP_PORT = 8000;
     public static final int SERVER_UDP_PORT = UDP_PORT;
-    public static final int UDP_SERVER_TIMEOUT = 100000;
+    public static final int UDP_SERVER_TIMEOUT = 1000;
     public static final int UDP_CLIENT_TIMEOUT = 1000;
     public static final String WQ_STUB_NAME = "My word quizzle name";
 
@@ -20,17 +19,18 @@ public class Consts {
     public static final int SERVER_THREADS = 10;
     public static final int ARRAY_INIT_SIZE = 1024;
     public static final int INT_SIZE = 4;
-    public static final String DICTIONARY_FILENAME = "long_dictionary";
+    public static final String DICTIONARY_FILENAME = "dictionary";
+    public static final String USER_DB_FILENAME = "user_db.json";
 
     //game constants
     public static final int CHALLENGE_WORDS_TO_MATCH = 6;
     public static final int MAX_MESSAGE_LENGTH = 1024; //TODO: improve calculation
     public static final String SERVER_ADDRESS = "localhost";
-    private static final int CHALLENGE_TIME_PER_WORD = 2000; //in ms
+    private static final int CHALLENGE_TIME_PER_WORD = 20000; //in ms
     public static final long CHALLENGE_TIMEOUT = CHALLENGE_WORDS_TO_MATCH * CHALLENGE_TIME_PER_WORD;
     public static final String CHALLENGE_OK = "Ok";
     public static final String CHALLENGE_REFUSED = "challenge_refused";
-    public static final long CHALLENGE_REQUEST_TIMEOUT = 2000; //time to wait before a challenge request expires
+    public static final long CHALLENGE_REQUEST_TIMEOUT = 10000; //time to wait before a challenge request expires
     public static final String CHALLENGE_WORD_MISMATCH = "FAIL"; //when the user sends a wrong translation
     public static final int ITALIAN_WORD_MAX_LENGTH = 29; //https://www.focus.it/cultura/curiosita/qual-e-la-parola-piu-lunga-della-lingua-italiana
     public static final int WIN_SCORE_AMOUNT = 3;
@@ -49,6 +49,8 @@ public class Consts {
 
     //responses from server
     public static final String RESPONSE_OK = "Ok";
+    public static final String RESPONSE_NEXT_WORD = "NextWord:"; //beginning of response to next word request
+    //error message from server
     public static final String RESPONSE_USER_NOT_FOUND = "404 User not found";
     public static final String RESPONSE_WRONG_PASSWORD = "Wrong password";
     public static final String RESPONSE_ALREADY_LOGGED = "User is already logged";
@@ -60,7 +62,8 @@ public class Consts {
     public static final String RESPONSE_SAME_USER = "The two user are the same";
     public static final String RESPONSE_CHALLENGE_REFUSED = "The user challenged has not accepted within the timeout";
     public static final String RESPONSE_CHALLENGE_TIMEOUT = "Your time for the challenge expired";
-    public static final String RESPONSE_NEXT_WORD = "NextWord:"; //beginning of response to next word request
+    public static final String RESPONSE_UNKNOWN_USERNAME = "The given username is not involved in the given challenge";
+    public static final String RESPONSE_WRONG_FORMAT = "Client send a request without proper format";
 
 
     //consts to create the translation url
@@ -74,20 +77,20 @@ public class Consts {
     /**
      * Creates a string to be sent in response to a translation
      * @param matchID The current match ID
-     * @param originalWord The original word
      * @param translatedWord The user-translated word
+     * @param wellTranslatedWord The given well translated word
      * @param outcome The correctness of the translation
      * @return The string to be sent back
      */
-    public static String getTranslationResponseServer(int matchID, String originalWord, String translatedWord, boolean outcome) {
+    public static String getTranslationResponseServer(int matchID, String translatedWord, String wellTranslatedWord, boolean outcome) {
         String outString = outcome ? CHALLENGE_OK: CHALLENGE_WORD_MISMATCH;
-        outString += " " + matchID + " " + originalWord + " " + translatedWord;
+        outString += " " + matchID + " " + translatedWord + " " + wellTranslatedWord;
         return outString;
     }
 
 
-    public static String getTranslationResponseClient(int matchID, String originalWord, String translatedWord) {
-        return Consts.REQUEST_NEXT_WORD + " " + matchID + " " + originalWord + " " + translatedWord;
+    public static String getTranslationResponseClient(int matchID, String user, String originalWord, String translatedWord) {
+        return Consts.REQUEST_NEXT_WORD + " " + matchID + " " + user + " " + originalWord + " " + translatedWord;
     }
 
     /**

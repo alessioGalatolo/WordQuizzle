@@ -65,11 +65,14 @@ public class UDPClient implements AutoCloseable{
                             waitingChallengeStart = true;
 
                         } else {
-                            //TODO: send error, user refused challenge
+                            byte[] failResponse = Consts.CHALLENGE_REFUSED.getBytes(StandardCharsets.UTF_8);
+                            datagramPacket = new DatagramPacket(failResponse, failResponse.length, InetAddress.getByName(Consts.SERVER_ADDRESS), Consts.SERVER_UDP_PORT);
+                            socket.send(datagramPacket);
                         }
 
                     } else if(waitingChallengeStart && messageFragments[0].equals(Consts.RESPONSE_OK)) {
                         latestMatchId = Integer.parseInt(messageFragments[1]);
+                        waitingChallengeStart = false;
                         startChallenge.set(true);
                     }else{
                         messagesLock.lock();

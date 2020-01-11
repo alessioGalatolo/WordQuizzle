@@ -3,7 +3,6 @@ package Server;
 import java.io.IOException;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.concurrent.ConcurrentHashMap;
 
 
@@ -15,7 +14,7 @@ public class UDPServer extends Thread {
 
     @Override
     public void run() {
-        try (DatagramSocket socket = new DatagramSocket()){
+        try (DatagramSocket socket = new DatagramSocket(Consts.SERVER_UDP_PORT)){
 
             socket.setSoTimeout(Consts.UDP_SERVER_TIMEOUT);
 
@@ -38,23 +37,26 @@ public class UDPServer extends Thread {
                     //get message string
                     String message = new String(buffer, 0, request.getLength(), StandardCharsets.UTF_8);
                     String[] messageFragments = message.split(" ");
-                    System.out.println("Received " + Arrays.toString(messageFragments));
+                    System.out.println("UDP received " + message);
 
-                    SocketAddress addressUser1;
-                    SocketAddress addressUser2;
+                    SocketAddress challengedAddress;
+                    SocketAddress challengerAddress;
 
                     switch (messageFragments[0]) {
                         case Consts.REQUEST_CHALLENGE:
-                            String name1 = messageFragments[1];
-                            String name2 = messageFragments[2];
+                            String challenger = messageFragments[1];
+                            String challenged = messageFragments[2];
 
                             String errorMessage = null;//stores, eventually, the error message
 
                             try {
-                                DatagramPacket challengePacket = UserDB.challengeFriend(name1, name2);
+                                DatagramPacket challengePacket = UserDB.challengeFriend(challenger, challenged);
                                 socket.send(challengePacket);
 
-                                pendingChallenges.put(request.getSocketAddress(), challengePacket.getSocketAddress());
+                                challengedAddress = challengePacket.getSocketAddress();
+                                challengerAddress = request.getSocketAddress();
+
+                                pendingChallenges.put(challengedAddress, challengerAddress);
 
                             } catch (UserDB.UserNotFoundException e) {
                                 errorMessage = Consts.RESPONSE_USER_NOT_FOUND;
@@ -74,45 +76,50 @@ public class UDPServer extends Thread {
 
                         case Consts.CHALLENGE_OK:
                             //retrieve user addresses involved in the challenge
-                            addressUser1 = request.getSocketAddress();
-                            addressUser2 = pendingChallenges.get(addressUser1);
-                            if (addressUser2 == null)
+                            challengedAddress = request.getSocketAddress();
+                            challengerAddress = pendingChallenges.get(challengedAddress);
+                            if (challengerAddress == null) {
+                                System.err.println("No matches found for address " + challengedAddress);
                                 continue; //TODO: handle error
-
-                            pendingChallenges.remove(addressUser1);
-
-                            //send ok message to both user
-                            byte[] confirmationResponse = new byte[0];
-                            try {
-                                confirmationResponse = UserDB.getChallengeConfirm(addressUser1, addressUser2);
-                            } catch (UserDB.ChallengeRequestTimeoutException e) {
-                                sendErrorMessage(socket, Consts.RESPONSE_CHALLENGE_TIMEOUT, addressUser2);
-                                sendErrorMessage(socket, Consts.RESPONSE_CHALLENGE_TIMEOUT, addressUser2);
-                            } catch (UserDB.UserNotFoundException e) {
-                                sendErrorMessage(socket, Consts.RESPONSE_CHALLENGE_REFUSED, addressUser2);
-                                sendErrorMessage(socket, Consts.RESPONSE_CHALLENGE_REFUSED, addressUser2);
                             }
+                            pendingChallenges.remove(challengedAddress);
 
-                            DatagramPacket challengeConfirmationPacket = new DatagramPacket(confirmationResponse, confirmationResponse.length, addressUser1);
+                            try {
+                                //send ok message to both user
+                                byte[] confirmationResponse = UserDB.getChallengeConfirm(challengerAddress, challengedAddress);
 
-                            socket.send(challengeConfirmationPacket);
-                            challengeConfirmationPacket.setSocketAddress(addressUser2);
-                            socket.send(challengeConfirmationPacket);
+                                DatagramPacket challengeConfirmationPacket = new DatagramPacket(confirmationResponse, confirmationResponse.length, challengedAddress);
+                                System.out.println(new String(challengeConfirmationPacket.getData(), 0, challengeConfirmationPacket.getLength(), StandardCharsets.UTF_8));
+                                socket.send(challengeConfirmationPacket);
+                                challengeConfirmationPacket.setSocketAddress(challengerAddress);
+                                socket.send(challengeConfirmationPacket);
+
+                            } catch (UserDB.ChallengeRequestTimeoutException e) {
+                                sendErrorMessage(socket, Consts.RESPONSE_CHALLENGE_TIMEOUT, challengerAddress);
+                                sendErrorMessage(socket, Consts.RESPONSE_CHALLENGE_TIMEOUT, challengerAddress);
+                            } catch (UserDB.UserNotFoundException e) {
+                                sendErrorMessage(socket, Consts.RESPONSE_CHALLENGE_REFUSED, challengerAddress);
+                                sendErrorMessage(socket, Consts.RESPONSE_CHALLENGE_REFUSED, challengerAddress);
+                            }
                             break;
 
                         case Consts.CHALLENGE_REFUSED:
-                            addressUser1 = request.getSocketAddress();
-                            addressUser2 = pendingChallenges.get(addressUser1);
-                            if (addressUser2 == null)
+                            challengedAddress = request.getSocketAddress();
+                            challengerAddress = pendingChallenges.get(challengedAddress);
+                            if (challengerAddress == null) {
+                                System.err.println("No matches found for address " + challengedAddress);
                                 continue; //TODO: handle error
-
-                            pendingChallenges.remove(addressUser1);
+                            }
+                            pendingChallenges.remove(challengedAddress);
 
                             try {
-                                DatagramPacket challengeRefusedPacket = UserDB.discardChallenge(addressUser1, addressUser2);
+
+                                DatagramPacket challengeRefusedPacket = UserDB.discardChallenge(challengerAddress, challengedAddress);
+                                socket.send(challengeRefusedPacket);
+
                             } catch (UserDB.UserNotFoundException e) {
-                                sendErrorMessage(socket, Consts.RESPONSE_CHALLENGE_REFUSED, addressUser2);
-                                sendErrorMessage(socket, Consts.RESPONSE_CHALLENGE_REFUSED, addressUser2);
+                                sendErrorMessage(socket, Consts.RESPONSE_CHALLENGE_REFUSED, challengerAddress);
+                                sendErrorMessage(socket, Consts.RESPONSE_CHALLENGE_REFUSED, challengerAddress);
                             }
                             break;
 

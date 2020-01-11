@@ -1,6 +1,7 @@
 package Server;
 
 import Commons.WQRegisterInterface;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -36,21 +37,20 @@ public class WriteTask implements Runnable {
                 if (selectionKey.attachment() instanceof ByteBuffer) {
                     //previous write was incomplete
                     byteBuffer = (ByteBuffer) selectionKey.attachment();
-//                message = new String((byteBuffer).array(), 0, byteBuffer.limit(), StandardCharsets.UTF_8); //TODO: limit?
-
 
                 } else if (selectionKey.attachment() instanceof byte[]) {
                     //previous operation was a read, serving request then sending response
                     String message = new String((byte[]) selectionKey.attachment(), StandardCharsets.UTF_8);
-                    System.out.println("Received: " + message);
+                    System.out.println("TCP received: " + message);
                     String[] messageFragments = message.split(" ");
 
+                    //variables to be used inside switch statement
                     String response = "";
-
+                    int matchId = 0;
 
                     //TODO: move actions taken from write task to read task
                     try {
-                        switch (messageFragments[0].toLowerCase()) {
+                        switch (messageFragments[0]) {
                             case Consts.REQUEST_LOGIN:
                                 if (messageFragments.length > 3)
                                     UserDB.logUser(messageFragments[1], messageFragments[2],
@@ -96,23 +96,27 @@ public class WriteTask implements Runnable {
                              */
                             case Consts.REQUEST_NEXT_WORD:
                                 //Check correctness of translated word, then send new word
-                                int matchID = Integer.parseInt(messageFragments[1]);
-                                String originalWord = messageFragments[2];
-                                String translatedWord = messageFragments[3];
-                                boolean outcome = ChallengeHandler.getInstance().checkTranslatedWord(matchID, originalWord, translatedWord);
-                                response = Consts.getTranslationResponseServer(matchID, originalWord, translatedWord, outcome);
+                                matchId = Integer.parseInt(messageFragments[1]);
+                                String username = messageFragments[2];
+                                String originalWord = messageFragments[3];
+                                String translatedWord = messageFragments[4];
+                                String wellTranslatedWord = ChallengeHandler.instance.checkTranslation(matchId, username, originalWord, translatedWord);
+                                boolean outcome = wellTranslatedWord != null && wellTranslatedWord.toLowerCase().equals(translatedWord.toLowerCase());
+                                response = Consts.getTranslationResponseServer(matchId, translatedWord, wellTranslatedWord, outcome);
+
                                 response += "\n";
 
                             case Consts.REQUEST_READY_FOR_CHALLENGE:
                                 //client is ready for a match
-                                int matchId = Integer.parseInt(messageFragments[1]);
+                                matchId = Integer.parseInt(messageFragments[1]);
                                 String user = messageFragments[2];
-                                String nextWord = ChallengeHandler.getInstance().getNextWord(matchId, user);
+                                String nextWord = ChallengeHandler.instance.getNextWord(matchId, user);
                                 response += Consts.getNextWordResponse(matchId, nextWord);
 
                                 break;
 
                             default:
+                                System.out.println("TCP, unknown command: " + messageFragments[0]);
                                 response = Consts.RESPONSE_UNKNOWN_REQUEST;
                                 break;
                         }
@@ -133,7 +137,14 @@ public class WriteTask implements Runnable {
                     } catch (ChallengeHandler.Challenge.GameTimeoutException e) {
                         response = Consts.RESPONSE_CHALLENGE_TIMEOUT;
                     } catch (ChallengeHandler.Challenge.EndOfMatchException e) {
-                        response = " "; //TODO: send recap
+                        response += ChallengeHandler.instance.getRecap(matchId);
+                    } catch (ChallengeHandler.Challenge.UnknownUsernameException e) {
+                        response = Consts.RESPONSE_UNKNOWN_USERNAME;
+                    }
+
+                    catch (IndexOutOfBoundsException e){
+                        //client sent a message without proper format
+                        response = Consts.RESPONSE_WRONG_FORMAT;
                     }
 
                     byteBuffer = ByteBuffer.wrap(response.getBytes(StandardCharsets.UTF_8));
@@ -166,4 +177,7 @@ public class WriteTask implements Runnable {
             e.printStackTrace();
         }
     }
+
+
+
 }

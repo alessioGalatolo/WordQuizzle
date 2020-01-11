@@ -2,7 +2,6 @@ package Client;
 
 import Commons.WQRegisterInterface;
 import Server.Consts;
-import Server.WQRegister;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -27,6 +26,7 @@ public class Main {
 
             AtomicBoolean incomingChallenge = new AtomicBoolean(false);
 
+            String currentLoggedUser = null;
 
             //socket init
             SocketAddress address = new InetSocketAddress(Consts.TCP_PORT);
@@ -49,13 +49,14 @@ public class Main {
                 while (true) {
                     if (incomingChallenge.get()) {
                         incomingChallenge.set(false);
-                        startChallenge(client, input, udpClient.getLatestMatchId());
+                        startChallenge(client, input, udpClient.getLatestMatchId(), currentLoggedUser);
                     }
 
                     //TODO: avoid active wait
                     if(input.ready()) {
                         String message = input.readLine();
                         String[] messageFragments = message.split(" ");
+                        String response;
                         switch (messageFragments[0]) {
                             case "register":
                                 try {
@@ -72,14 +73,20 @@ public class Main {
                                 ByteBuffer byteBuffer = ByteBuffer.wrap(toWrite.getBytes(StandardCharsets.UTF_8));
                                 while (byteBuffer.hasRemaining())
                                     client.write(byteBuffer);
-                                System.out.println(readResponse(client));
+                                response = readResponse(client);
+                                System.out.println(response);
+                                if(response.startsWith(Consts.RESPONSE_OK))
+                                    currentLoggedUser = messageFragments[1];
                                 break;
                             case "logout":
                                 toWrite = Consts.getRequestLogout(messageFragments[1]);
                                 byteBuffer = ByteBuffer.wrap(toWrite.getBytes(StandardCharsets.UTF_8));
                                 while (byteBuffer.hasRemaining())
                                     client.write(byteBuffer);
-                                System.out.println(readResponse(client));
+                                response = readResponse(client);
+                                System.out.println(response);
+                                if(response.startsWith(Consts.RESPONSE_OK))
+                                    currentLoggedUser = null;
                                 break;
                             case "addFriend":
                                 toWrite = Consts.getRequestAddFriend(messageFragments[1], messageFragments[2]);
@@ -92,7 +99,8 @@ public class Main {
 
                                 //request the challenge, method will return with the answer from other user
                                 if(udpClient.requestChallenge(messageFragments[1], messageFragments[2])){
-                                    startChallenge(client, input, udpClient.getLatestMatchId());
+                                    System.out.println("Challenge was accepted");
+                                    startChallenge(client, input, udpClient.getLatestMatchId(), messageFragments[1]);
                                 }else
                                     System.out.println("The challenge was refused or the timeout has expired");
                                 break;
@@ -131,10 +139,8 @@ public class Main {
         return new String(byteBuffer.array(), 0, byteBuffer.remaining(), StandardCharsets.UTF_8);
     }
 
-    private static void startChallenge(SocketChannel client, BufferedReader input, int matchId) {
-
-
-        byte[] byteMessage = (Consts.REQUEST_READY_FOR_CHALLENGE + " " + matchId).getBytes(StandardCharsets.UTF_8);
+    private static void startChallenge(SocketChannel client, BufferedReader input, int matchId, String user) {
+        byte[] byteMessage = (Consts.REQUEST_READY_FOR_CHALLENGE + " " + matchId + " " + user).getBytes(StandardCharsets.UTF_8);
         ByteBuffer messageBuffer = ByteBuffer.wrap(byteMessage);
 
         try {
@@ -142,22 +148,19 @@ public class Main {
             while (messageBuffer.hasRemaining())
                 client.write(messageBuffer);
 
-            //prepare to read new word
-            messageBuffer = ByteBuffer.allocate(Consts.MAX_MESSAGE_LENGTH);
 
             //read x words to be translated
             int i = 0;
-            while(i < Consts.CHALLENGE_WORDS_TO_MATCH){
-                client.read(messageBuffer);
-                messageBuffer.flip();
+            while(i < Consts.CHALLENGE_WORDS_TO_MATCH + 1){
 
-                String[] messages = new String(messageBuffer.array(), 0, messageBuffer.remaining(), StandardCharsets.UTF_8).split("\n");
+                String wholeMessage = readResponse(client);
+                String[] messages = wholeMessage.split("\n");
                 for(String message: messages) {
                     String[] messageFragments = message.split(" ");
                     if (messageFragments[0].equals(Consts.RESPONSE_NEXT_WORD)) {
                         System.out.println("Next word to be translated is: " + messageFragments[2]);
                         String translatedWord = input.readLine();
-                        String translationMessage = Consts.getTranslationResponseClient(matchId, messageFragments[2], translatedWord);
+                        String translationMessage = Consts.getTranslationResponseClient(matchId, user, messageFragments[2], translatedWord);
                         messageBuffer = ByteBuffer.wrap(translationMessage.getBytes(StandardCharsets.UTF_8));
 
                         //send translated word
@@ -171,6 +174,8 @@ public class Main {
                     } else if (messageFragments[0].equals("timeout")){
                         //TODO: add timeout case
                         System.out.println("Timeout!");
+                    }else{
+                        System.out.println(message);
                     }
 
                 }

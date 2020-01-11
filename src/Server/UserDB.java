@@ -3,7 +3,6 @@ package Server;
 import Commons.WQRegisterInterface;
 import com.google.gson.Gson;
 
-import java.io.IOException;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -11,7 +10,6 @@ import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -28,7 +26,6 @@ class UserDB {
     static private ConcurrentHashMap<SocketAddress, String> pendingChallenges = new ConcurrentHashMap<>();
     //TODO: join the two hash map
     static private ConcurrentHashMap<String, Long> challengeTimeouts = new ConcurrentHashMap<>(); //keeps the timeout
-
 
 
     //TODO: add save to file
@@ -73,9 +70,17 @@ class UserDB {
         user.login(address, UDPPort);
     }
 
-    //the above method when using a default udp port
-    static void logUser(String name, String password, InetAddress address) throws UserNotFoundException, WQRegisterInterface.InvalidPasswordException, AlreadyLoggedException {
-        logUser(name, password, address, Consts.UDP_PORT);
+    /**
+     * Logs in the user to the DB with the default port
+     * @param username The name of the user
+     * @param password His password
+     * @param address His current IP address
+     * @throws UserNotFoundException When the username is not to be found in the DB
+     * @throws WQRegisterInterface.InvalidPasswordException When the given password doesn't match the original one
+     * @throws AlreadyLoggedException When the user is already logged
+     */
+    static void logUser(String username, String password, InetAddress address) throws UserNotFoundException, WQRegisterInterface.InvalidPasswordException, AlreadyLoggedException {
+        logUser(username, password, address, Consts.UDP_PORT);
     }
 
     /**
@@ -101,19 +106,19 @@ class UserDB {
     //TODO: fix -> a user can add a friendship between other users if they are all logged
     /**
      * Creates a friendship between the given user
-     * @param nick1 The user who requested the friendship
-     * @param nick2 The user nick1 wants to be friend with
+     * @param username1 The user who requested the friendship
+     * @param username2 The user username1 wants to be friend with
      * @throws UserNotFoundException If one of the user were not found in the DB
      * @throws AlreadyFriendsException If the two users were already friends
      * @throws NotLoggedException If the requesting user is not logged
      * @throws SameUserException If the nick provided are the same
      */
-    static void addFriendship(String nick1, String nick2) throws UserNotFoundException, AlreadyFriendsException, NotLoggedException, SameUserException {
-        if(nick1.equals(nick2))
+    static void addFriendship(String username1, String username2) throws UserNotFoundException, AlreadyFriendsException, NotLoggedException, SameUserException {
+        if(username1.equals(username2))
             throw new SameUserException();
 
-        User user1 = usersTable.get(nick1);
-        User user2 = usersTable.get(nick2);
+        User user1 = usersTable.get(username1);
+        User user2 = usersTable.get(username2);
 
         if(user1 == null || user2 == null)
             throw new UserNotFoundException();
@@ -127,13 +132,13 @@ class UserDB {
 
     /**
      * Retrieves the friend list of the given user
-     * @param name The username whose friends to return
+     * @param username The username whose friends to return
      * @return The JSON string of a linkedList of users
      * @throws UserNotFoundException If the given user were not found
      * @throws NotLoggedException If the given user is not logged in
      */
-    static String getFriends(String name) throws UserNotFoundException, NotLoggedException {
-        User friendlyUser = usersTable.get(name);
+    static String getFriends(String username) throws UserNotFoundException, NotLoggedException {
+        User friendlyUser = usersTable.get(username);
 
         if (friendlyUser == null)
             throw new UserNotFoundException();
@@ -184,7 +189,7 @@ class UserDB {
 
         pendingChallenges.put(requestPacket.getSocketAddress(), challengedName);
         pendingChallenges.put(new InetSocketAddress(challenger.getAddress(), challenger.getUDPPort()), challengerName);
-        challengeTimeouts.put(challengerName, System.nanoTime());
+        challengeTimeouts.put(challengedName, System.currentTimeMillis());
 
         return requestPacket;
     }
@@ -203,16 +208,21 @@ class UserDB {
         pendingChallenges.remove(challengerAddress);
         pendingChallenges.remove(challengedAddress);
 
-        if(challengerName == null || challengedName == null)
+        if(challengedName == null)
             throw new UserNotFoundException();
 
-        long challengeInitialTime = challengeTimeouts.get(challengerName);
-        challengeTimeouts.remove(challengerName);
+        long challengeInitialTime = challengeTimeouts.get(challengedName);
+        challengeTimeouts.remove(challengedName);
 
-        if(System.nanoTime() - challengeInitialTime > Consts.CHALLENGE_REQUEST_TIMEOUT)
+        if(challengerName == null)
+            throw new UserNotFoundException();
+
+        if(System.currentTimeMillis() - challengeInitialTime > Consts.CHALLENGE_REQUEST_TIMEOUT) {
+            System.out.println(System.currentTimeMillis() + " " + challengeInitialTime);
             throw new ChallengeRequestTimeoutException();
+        }
 
-        int matchId = ChallengeHandler.getInstance().createChallenge(challengerName, challengedName);
+        int matchId = ChallengeHandler.instance.createChallenge(challengerName, challengedName);
 
         usersTable.get(challengerName).addMatch(matchId);
         usersTable.get(challengedName).addMatch(matchId);
@@ -233,12 +243,12 @@ class UserDB {
         pendingChallenges.remove(challengerAddress);
         pendingChallenges.remove(challengedAddress);
 
-        if(challengerName == null)
+        if(challengedName == null)
             throw new UserNotFoundException();
 
-        challengeTimeouts.remove(challengerName);
+        challengeTimeouts.remove(challengedName);
 
-        if(challengedName == null)
+        if(challengerName == null)
             throw new UserNotFoundException();
 
         byte[] errorMessage = Consts.RESPONSE_CHALLENGE_REFUSED.getBytes(StandardCharsets.UTF_8);
@@ -275,7 +285,6 @@ class UserDB {
     }
 
 
-
     /**
      * Class representing the user.
      * It keeps all the useful info and provides basic ops for the user
@@ -303,8 +312,6 @@ class UserDB {
             return id;
         }
 
-
-        //TODO: synchronized??
         int getScore() {
             return score;
         }
@@ -321,6 +328,7 @@ class UserDB {
             return UDPPort;
         }
 
+        //TODO: update score
         void addToScore(int amount){
             //TODO: can score be negative?
             if(amount > 0)

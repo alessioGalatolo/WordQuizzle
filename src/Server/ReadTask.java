@@ -8,7 +8,7 @@ import java.util.Arrays;
 
 
 /**
- * Class that read from a key all the available bytes
+ * Class that reads from a key all the available bytes
  */
 public class ReadTask implements Runnable {
     private SelectionKey selectionKey;

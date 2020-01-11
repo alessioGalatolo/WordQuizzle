@@ -53,7 +53,7 @@ public class Main {
                     for(SelectionKey currentKey: selector.selectedKeys()){
 
                         try {
-                            if (currentKey.isAcceptable()) {
+                            if (currentKey.isValid() && currentKey.isAcceptable()) {
                                 //accept new connection
 
                                 ServerSocketChannel server = (ServerSocketChannel) currentKey.channel();
@@ -61,7 +61,7 @@ public class Main {
                                 clientSocketChannel.configureBlocking(false);
                                 clientSocketChannel.register(selector, SelectionKey.OP_READ); //expecting a write from the client as the new operation
 
-                            } else if (currentKey.isReadable()) {
+                            } else if (currentKey.isValid() && currentKey.isReadable()) {
                                 /*
                                     socket reads at most Server.Consts.ARRAY_INIT_SIZE bytes and puts the bytes read as an
                                     attachment to the the selectionKey. If an array of byte was already attached, they
@@ -72,7 +72,7 @@ public class Main {
 
                                 currentKey.interestOps(SelectionKey.OP_WRITE | SelectionKey.OP_READ);
 
-                            } else if (currentKey.isWritable()) {
+                            } else if (currentKey.isValid() && currentKey.isWritable()) {
                                 /*
                                     Checks the attachment of the selectionKey.
                                     if a byte[] is found -> allocates a byteBuffer and tries to write it all. if an incomplete write happens, the remaining buffer is stored as an attachment
