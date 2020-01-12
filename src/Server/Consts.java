@@ -121,4 +121,16 @@ public class Consts {
     public static String getRequestChallenge(String user1, String user2) {
         return REQUEST_CHALLENGE + " " + user1 + " " + user2;
     }
+
+    public static String getRequestRankings(String user) {
+        return REQUEST_RANKINGS + " " + user;
+    }
+
+    public static String getRequestScore(String user) {
+        return REQUEST_SCORE + " " + user;
+    }
+
+    public static String getRequestFriends(String user) {
+        return REQUEST_FRIEND_LIST + " " + user;
+    }
 }

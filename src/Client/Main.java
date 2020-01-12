@@ -10,7 +10,6 @@ import java.net.*;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
-import java.rmi.AccessException;
 import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
@@ -46,7 +45,8 @@ public class Main {
                     return false;})
             ){
 
-                while (true) {
+                boolean quit = false;
+                while (!quit) {
                     if (incomingChallenge.get()) {
                         incomingChallenge.set(false);
                         startChallenge(client, input, udpClient.getLatestMatchId(), currentLoggedUser);
@@ -69,34 +69,24 @@ public class Main {
                                 }
                                 break;
                             case "login":
-                                String toWrite = Consts.getRequestLogin(messageFragments[1], messageFragments[2], udpClient.getUDPPort());
-                                ByteBuffer byteBuffer = ByteBuffer.wrap(toWrite.getBytes(StandardCharsets.UTF_8));
-                                while (byteBuffer.hasRemaining())
-                                    client.write(byteBuffer);
+                                writeRequest(client, Consts.getRequestLogin(messageFragments[1], messageFragments[2], udpClient.getUDPPort()));
                                 response = readResponse(client);
                                 System.out.println(response);
                                 if(response.startsWith(Consts.RESPONSE_OK))
                                     currentLoggedUser = messageFragments[1];
                                 break;
                             case "logout":
-                                toWrite = Consts.getRequestLogout(messageFragments[1]);
-                                byteBuffer = ByteBuffer.wrap(toWrite.getBytes(StandardCharsets.UTF_8));
-                                while (byteBuffer.hasRemaining())
-                                    client.write(byteBuffer);
+                                writeRequest(client, Consts.getRequestLogout(messageFragments[1]));
                                 response = readResponse(client);
                                 System.out.println(response);
                                 if(response.startsWith(Consts.RESPONSE_OK))
                                     currentLoggedUser = null;
                                 break;
                             case "addFriend":
-                                toWrite = Consts.getRequestAddFriend(messageFragments[1], messageFragments[2]);
-                                byteBuffer = ByteBuffer.wrap(toWrite.getBytes(StandardCharsets.UTF_8));
-                                while (byteBuffer.hasRemaining())
-                                    client.write(byteBuffer);
+                                writeRequest(client, Consts.getRequestAddFriend(messageFragments[1], messageFragments[2]));
                                 System.out.println(readResponse(client));
                                 break;
                             case "challenge":
-
                                 //request the challenge, method will return with the answer from other user
                                 if(udpClient.requestChallenge(messageFragments[1], messageFragments[2])){
                                     System.out.println("Challenge was accepted");
@@ -104,25 +94,40 @@ public class Main {
                                 }else
                                     System.out.println("The challenge was refused or the timeout has expired");
                                 break;
-                            //TODO: add missing commands
+                            case "ranking":
+                                writeRequest(client, Consts.getRequestRankings(messageFragments[1]));
+                                System.out.println(readResponse(client));
+                                break;
+                            case "score":
+                                writeRequest(client, Consts.getRequestScore(messageFragments[1]));
+                                System.out.println(readResponse(client));
+                            case "friends":
+                                writeRequest(client, Consts.getRequestFriends(messageFragments[1]));
+                                System.out.println(readResponse(client));
+                            case "quit":
+                                if(currentLoggedUser != null)
+                                    System.out.println("You must logout before quitting");
+                                else
+                                    quit = true;
+                                break;
                             default:
                                 System.out.println("Sorry, not recognized");
                         }
                     }
                 }
-            }catch (IOException e) {
+            } catch (IOException e) {
                 e.printStackTrace();
             }
-
-
-        } catch (NotBoundException e) {
-            e.printStackTrace();
-        } catch (AccessException e) {
-            e.printStackTrace();
-        } catch (RemoteException e) {
+        } catch (NotBoundException | RemoteException e) {
             e.printStackTrace();
         }
 
+    }
+
+    private static void writeRequest(SocketChannel client, String requestString) throws IOException {
+        ByteBuffer byteBuffer = ByteBuffer.wrap(requestString.getBytes(StandardCharsets.UTF_8));
+        while (byteBuffer.hasRemaining())
+            client.write(byteBuffer);
     }
 
     private static String readResponse(SocketChannel client) throws IOException {
@@ -139,25 +144,29 @@ public class Main {
         return new String(byteBuffer.array(), 0, byteBuffer.remaining(), StandardCharsets.UTF_8);
     }
 
-    private static void startChallenge(SocketChannel client, BufferedReader input, int matchId, String user) {
+    private static void startChallenge(SocketChannel client, BufferedReader input, int matchId, String user) throws IOException {
         byte[] byteMessage = (Consts.REQUEST_READY_FOR_CHALLENGE + " " + matchId + " " + user).getBytes(StandardCharsets.UTF_8);
         ByteBuffer messageBuffer = ByteBuffer.wrap(byteMessage);
 
-        try {
-            //write ready for challenge
-            while (messageBuffer.hasRemaining())
-                client.write(messageBuffer);
+        //write ready for challenge
+        while (messageBuffer.hasRemaining())
+            client.write(messageBuffer);
 
 
-            //read x words to be translated
-            int i = 0;
-            while(i < Consts.CHALLENGE_WORDS_TO_MATCH + 1){
+        //read x words to be translated
+        int i = 0;
+        boolean quit = false;
+        while(i < Consts.CHALLENGE_WORDS_TO_MATCH + 1 && !quit){
 
-                String wholeMessage = readResponse(client);
-                String[] messages = wholeMessage.split("\n");
-                for(String message: messages) {
-                    String[] messageFragments = message.split(" ");
-                    if (messageFragments[0].equals(Consts.RESPONSE_NEXT_WORD)) {
+            String wholeMessage = readResponse(client);
+            String[] messages = wholeMessage.split("\n");
+            for(String message: messages) {
+                if(message.equals(Consts.RESPONSE_CHALLENGE_TIMEOUT))
+                    quit = true;
+
+                String[] messageFragments = message.split(" ");
+                switch (messageFragments[0]) {
+                    case Consts.RESPONSE_NEXT_WORD:
                         System.out.println("Next word to be translated is: " + messageFragments[2]);
                         String translatedWord = input.readLine();
                         String translationMessage = Consts.getTranslationResponseClient(matchId, user, messageFragments[2], translatedWord);
@@ -167,23 +176,21 @@ public class Main {
                         while (messageBuffer.hasRemaining())
                             client.write(messageBuffer);
 
-                    } else if (messageFragments[0].equals(Consts.CHALLENGE_OK)){
+                        break;
+                    case Consts.CHALLENGE_OK:
                         System.out.println("Last translation was correct!");
-                    } else if (messageFragments[0].equals(Consts.CHALLENGE_WORD_MISMATCH)){
+                        break;
+                    case Consts.CHALLENGE_WORD_MISMATCH:
                         System.out.println("Last translation was incorrect");
-                    } else if (messageFragments[0].equals("timeout")){
-                        //TODO: add timeout case
-                        System.out.println("Timeout!");
-                    }else{
+                        System.out.println("Your translation was: " + messageFragments[2] + " while correct answer is " + messageFragments[3]);
+                        break;
+                    default:
                         System.out.println(message);
-                    }
-
+                        break;
                 }
-                i++;
-            }
 
-        } catch (IOException e) {
-            e.printStackTrace();
+            }
+            i++;
         }
     }
 }

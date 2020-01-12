@@ -166,6 +166,14 @@ class ChallengeHandler {
         return translatedWord;
     }
 
+    int getScore(int matchId, String user) throws Challenge.UnknownUsernameException {
+        return activeChallenges.get(matchId).getScore(user);
+    }
+
+    boolean challengeIsFinished(int matchId) {
+        return activeChallenges.get(matchId).finished;
+    }
+
     /**
      * Class that represents a challenge, it stores all the useful info
      * and gives some basic operations.
@@ -272,6 +280,23 @@ class ChallengeHandler {
                     finished = true;
                     throw new GameTimeoutException();
                 }
+            }
+            //no username matches found
+            throw new UnknownUsernameException();
+        }
+
+        /**
+         * Retrieves the score of the given user
+         * @param user The user
+         * @return The score
+         * @throws UnknownUsernameException When the given user is not in the challenge
+         */
+        int getScore(String user) throws UnknownUsernameException {
+            if(user.equals(user1)) {
+                return user1Score;
+            }
+            else if(user.equals(user2)) {
+                return user2Score;
             }
             //no username matches found
             throw new UnknownUsernameException();

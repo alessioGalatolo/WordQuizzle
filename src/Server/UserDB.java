@@ -2,6 +2,7 @@ package Server;
 
 import Commons.WQRegisterInterface;
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
 
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
@@ -22,7 +23,6 @@ import java.util.LinkedList;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiConsumer;
 
 /**
  * Class representing and collecting the users and their relations. Handles all the operations involving users
@@ -30,33 +30,40 @@ import java.util.function.BiConsumer;
  * Package private class, the class and the member can only be called by the Server components
  */
 class UserDB {
-    static UserDB instance;
+    static UserDB instance; //stores the only instance of the DB
+
+    private ConcurrentHashMap<String, User> usersTable = new ConcurrentHashMap<>(); //key -> username, value -> User object
+    private SimpleGraph relationsGraph = new SimpleGraph(); //store all the friend relationships of the user in a graph
+
+    //temporarily stores all the user involved in pending challenges for fast retrieval
+    private ConcurrentHashMap<SocketAddress, ChallengeInfo> pendingChallenges = new ConcurrentHashMap<>();
+
+    /*
+      Init of the database, if found restores the users from file
+     */
     static {
         try(BufferedReader bufferedReader = new BufferedReader(new FileReader(Consts.USER_DB_FILENAME))) {
             Gson gson = new Gson();
             instance = gson.fromJson(bufferedReader, UserDB.class);
             instance.logoutAll();
         } catch (FileNotFoundException e) {
-            //file doesn't exist yet
+            //file doesn't exist, yet
             instance = new UserDB();
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
+    /**
+     * Logs out all the user in the database
+     */
     private void logoutAll() {
         usersTable.forEach((s, user) -> user.logout());
     }
 
-    private ConcurrentHashMap<String, User> usersTable = new ConcurrentHashMap<>();
-    private SimpleGraph relationsGraph = new SimpleGraph();
-
-    //temporarily stores all the user involved in pending challenges for fast retrieval
-    private ConcurrentHashMap<SocketAddress, String> pendingChallenges = new ConcurrentHashMap<>();
-    //TODO: join the two hash map
-    private ConcurrentHashMap<String, Long> challengeTimeouts = new ConcurrentHashMap<>(); //keeps the timeout
-
-
+    /**
+     * Store the database to a file
+     */
     void storeToFile(){
         Gson gson = new Gson();
         byte[] jsonFile = gson.toJson(instance).getBytes(StandardCharsets.UTF_8);
@@ -73,15 +80,15 @@ class UserDB {
 
     /**
      * Add a user the the database
-     * @param username
-     * @param password
+     * @param username The name of the user
+     * @param password His password
      * @throws WQRegisterInterface.UserAlreadyRegisteredException When the username is already present in the DB
      * @throws WQRegisterInterface.InvalidPasswordException When the password is blank or null
      */
     void addUser(String username, String password) throws WQRegisterInterface.UserAlreadyRegisteredException, WQRegisterInterface.InvalidPasswordException {
         if(usersTable.containsKey(username))
             throw new WQRegisterInterface.UserAlreadyRegisteredException();
-        if(password == null || password.isBlank())//isBlank() requires java 11
+        if(password == null || password.isBlank()) //isBlank() requires java 11
             throw new WQRegisterInterface.InvalidPasswordException();
 
         usersTable.put(username, new User(username, password));
@@ -126,7 +133,7 @@ class UserDB {
 
     /**
      * Logs out the user
-     * @param username
+     * @param username The name of the user
      * @throws UserNotFoundException If the user could not be found
      * @throws NotLoggedException If the user is not logged in (currently disabled)
      */
@@ -135,7 +142,7 @@ class UserDB {
         if(user == null)
             throw new UserNotFoundException();
 
-        //commented as it's only a minor error
+        //commented as it's only a minor error and should not compromise the system behavior
 //        if(user.isNotLogged())
 //            throw new NotLoggedException();
 
@@ -174,7 +181,7 @@ class UserDB {
     /**
      * Retrieves the friend list of the given user
      * @param username The username whose friends to return
-     * @return The JSON string of a linkedList of users
+     * @return A json array of String of the friends
      * @throws UserNotFoundException If the given user were not found
      * @throws NotLoggedException If the given user is not logged in
      */
@@ -188,15 +195,16 @@ class UserDB {
 
 
         LinkedList<User> friends = relationsGraph.getLinkedNodes(friendlyUser);
-        //TODO: maybe return a JSON array of usernames
-        Gson gson = new Gson();
-        return gson.toJson(friends);
+        JsonArray usernames = new JsonArray();
+        for(User user: friends){
+            usernames.add(user.getName());
+        }
+        //TODO: maybe return a JSON array of usernames, check correctness
+        return usernames.toString();
     }
 
     /**
      * Creates a pending challenge
-     * @param challengerName
-     * @param challengedName
      * @throws UserNotFoundException If the user were not found
      * @throws NotFriendsException If the two users are not friends
      * @throws NotLoggedException If the challenger is not logged
@@ -224,13 +232,12 @@ class UserDB {
         //send challenge request to the other user
         String message = (Consts.REQUEST_CHALLENGE + " " + challengerName);
         System.out.println("Sent " + message + " to " + challenged.getAddress() + " " + challenged.getUDPPort());
-        byte[] challengeRequest = message.getBytes(StandardCharsets.UTF_8); //TODO: check correct spacing
+        byte[] challengeRequest = message.getBytes(StandardCharsets.UTF_8);
 
         DatagramPacket requestPacket = new DatagramPacket(challengeRequest, challengeRequest.length, challenged.getAddress(), challenged.getUDPPort());
 
-        pendingChallenges.put(requestPacket.getSocketAddress(), challengedName);
-        pendingChallenges.put(new InetSocketAddress(challenger.getAddress(), challenger.getUDPPort()), challengerName);
-        challengeTimeouts.put(challengedName, System.currentTimeMillis());
+        pendingChallenges.put(requestPacket.getSocketAddress(), new ChallengeInfo(challengedName, System.currentTimeMillis()));
+        pendingChallenges.put(new InetSocketAddress(challenger.getAddress(), challenger.getUDPPort()), new ChallengeInfo(challengerName, System.currentTimeMillis()));
 
         return requestPacket;
     }
@@ -244,29 +251,25 @@ class UserDB {
      * @throws UserNotFoundException When one of the given address is not bounded to any user
      */
     byte[] getChallengeConfirm(SocketAddress challengerAddress, SocketAddress challengedAddress) throws UserNotFoundException, ChallengeRequestTimeoutException {
-        String challengerName = pendingChallenges.get(challengerAddress);
-        String challengedName = pendingChallenges.get(challengedAddress);
+        ChallengeInfo challenger = pendingChallenges.get(challengerAddress);
+        ChallengeInfo challenged = pendingChallenges.get(challengedAddress);
         pendingChallenges.remove(challengerAddress);
         pendingChallenges.remove(challengedAddress);
 
-        if(challengedName == null)
+        if(challenged == null || challenger == null)
             throw new UserNotFoundException();
 
-        long challengeInitialTime = challengeTimeouts.get(challengedName);
-        challengeTimeouts.remove(challengedName);
-
-        if(challengerName == null)
-            throw new UserNotFoundException();
+        long challengeInitialTime = challenged.timestamp;
 
         if(System.currentTimeMillis() - challengeInitialTime > Consts.CHALLENGE_REQUEST_TIMEOUT) {
             System.out.println(System.currentTimeMillis() + " " + challengeInitialTime);
             throw new ChallengeRequestTimeoutException();
         }
 
-        int matchId = ChallengeHandler.instance.createChallenge(challengerName, challengedName);
+        int matchId = ChallengeHandler.instance.createChallenge(challenger.name, challenged.name);
 
-        usersTable.get(challengerName).addMatch(matchId);
-        usersTable.get(challengedName).addMatch(matchId);
+        usersTable.get(challenger.name).addMatch(matchId);
+        usersTable.get(challenged.name).addMatch(matchId);
 
         return (Consts.RESPONSE_OK + " " + matchId).getBytes(StandardCharsets.UTF_8);
     }
@@ -276,21 +279,10 @@ class UserDB {
      * @param challengerAddress The user who started the challenge address
      * @param challengedAddress The user who has been challenged address
      * @return The datagram packet to be sent to the user who started the challenge
-     * @throws UserNotFoundException When one of the given address is not bounded to any user
      */
-    DatagramPacket discardChallenge(SocketAddress challengerAddress, SocketAddress challengedAddress) throws UserNotFoundException {
-        String challengerName = pendingChallenges.get(challengerAddress);
-        String challengedName = pendingChallenges.get(challengedAddress);
+    DatagramPacket discardChallenge(SocketAddress challengerAddress, SocketAddress challengedAddress){
         pendingChallenges.remove(challengerAddress);
         pendingChallenges.remove(challengedAddress);
-
-        if(challengedName == null)
-            throw new UserNotFoundException();
-
-        challengeTimeouts.remove(challengedName);
-
-        if(challengerName == null)
-            throw new UserNotFoundException();
 
         byte[] errorMessage = Consts.RESPONSE_CHALLENGE_REFUSED.getBytes(StandardCharsets.UTF_8);
         return new DatagramPacket(errorMessage, errorMessage.length, challengerAddress);
@@ -329,12 +321,15 @@ class UserDB {
     /**
      * Class representing the user.
      * It keeps all the useful info and provides basic ops for the user
+     *
+     * Thread safety is assured by the use of Vector
      */
     static class User{
         private String name;
         private String password;
         private InetAddress loginAddress = null;
-        private Vector<Integer> matchList = new Vector<>();
+        private Vector<Integer> pendingMatchList = new Vector<>();
+        private Vector<Integer> doneMatchList = new Vector<>();
         private int UDPPort;
         private int score = 0;
         private int id;
@@ -353,7 +348,24 @@ class UserDB {
             return id;
         }
 
+        /**
+         * Updates the score of the user, retrieving the score of the pending matches
+         * @return The updated score
+         */
         int getScore() {
+            var iterator = pendingMatchList.iterator();
+            while(iterator.hasNext()){
+                int matchId = iterator.next();
+                try {
+                    if(ChallengeHandler.instance.challengeIsFinished(matchId)) {
+                        score += ChallengeHandler.instance.getScore(matchId, name);
+                        doneMatchList.add(matchId);
+                        iterator.remove();
+                    }
+                } catch (ChallengeHandler.Challenge.UnknownUsernameException e) {
+                    e.printStackTrace();
+                }
+            }
             return score;
         }
 
@@ -367,13 +379,6 @@ class UserDB {
 
         int getUDPPort() {
             return UDPPort;
-        }
-
-        //TODO: update score
-        void addToScore(int amount){
-            //TODO: can score be negative?
-            if(amount > 0)
-                score += amount;
         }
 
         boolean matches(String name, String password) {
@@ -403,7 +408,7 @@ class UserDB {
         }
 
         void addMatch(int matchId) {
-            matchList.add(matchId);
+            pendingMatchList.add(matchId);
         }
 
         @Override
@@ -432,17 +437,35 @@ class UserDB {
             adjacencyList.get(user2.getId()).add(user1);
         }
 
+        /**
+         * @return true if the two users are linked
+         */
         boolean nodesAreLinked(User user1, User user2){
             return adjacencyList.get(user1.getId()).contains(user2);
         }
 
+        /**
+         * @return true if the two user are NOT linked
+         */
         boolean nodesAreNotLinked(User user1, User user2){
             return !nodesAreLinked(user1, user2);
         }
 
-        //returns all the nodes linked to user
+        /**
+         * @return All the nodes linked to user
+         */
         LinkedList<User> getLinkedNodes(User user){
             return adjacencyList.get(user.getId());
+        }
+    }
+
+    private static class ChallengeInfo{
+        private String name;
+        private Long timestamp;
+
+        private ChallengeInfo(String name, Long timestamp) {
+            this.name = name;
+            this.timestamp = timestamp;
         }
     }
 

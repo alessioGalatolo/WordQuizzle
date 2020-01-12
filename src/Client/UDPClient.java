@@ -21,9 +21,9 @@ import static java.lang.Thread.interrupted;
  *
  * Handles all the UDP requests
  *
- * Implements autoclosable to allow for an automatic close
+ * Implements AutoClosable to allow for an automatic close
  */
-public class UDPClient implements AutoCloseable{
+class UDPClient implements AutoCloseable{
 
     private Thread readerThread; //thread that reads all the incoming messages
     private DatagramSocket socket; //UDP socket
@@ -37,13 +37,19 @@ public class UDPClient implements AutoCloseable{
 
     private int latestMatchId = 0; //collects latest match id
 
-
-    public UDPClient(AtomicBoolean startChallenge, Predicate<String> challengeRequestFun) throws SocketException {
+    /**
+     * Creates the udp socket and starts the thread who reads all the incoming messages
+     * @param startChallenge A boolean to be set to true when the user has to start a challenge (TCP)
+     * @param challengeRequestFun Function to be called when a new challenge arrives
+     */
+    UDPClient(AtomicBoolean startChallenge, Predicate<String> challengeRequestFun) throws SocketException {
         socket = new DatagramSocket();
         socket.setSoTimeout(Consts.UDP_CLIENT_TIMEOUT);
 
         //one thread always waiting for incoming messages
         readerThread = new Thread(() -> {
+            //Defining the runnable of the thread
+
             while (!interrupted()){
                 byte[] buffer = new byte[Consts.MAX_MESSAGE_LENGTH];
                 DatagramPacket datagramPacket = new DatagramPacket(buffer, buffer.length);
@@ -101,7 +107,7 @@ public class UDPClient implements AutoCloseable{
      * @param otherUser The user who is being challenged
      * @return The answer of the other user
      */
-    public Boolean requestChallenge(String thisUser, String otherUser){
+    Boolean requestChallenge(String thisUser, String otherUser){
         try {
             byte[] challengeRequest = Consts.getRequestChallenge(thisUser, otherUser).getBytes(StandardCharsets.UTF_8);
             DatagramPacket datagramPacket = new DatagramPacket(challengeRequest, challengeRequest.length, InetAddress.getByName(Consts.SERVER_ADDRESS), Consts.SERVER_UDP_PORT);
@@ -138,11 +144,11 @@ public class UDPClient implements AutoCloseable{
         socket.close();
     }
 
-    public int getLatestMatchId() {
+    int getLatestMatchId() {
         return latestMatchId;
     }
 
-    public int getUDPPort() {
+    int getUDPPort() {
         return socket.getLocalPort();
     }
 }

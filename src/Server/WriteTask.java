@@ -12,11 +12,11 @@ import java.nio.charset.StandardCharsets;
 /**
  * Class that does all the possible writing work
  */
-public class WriteTask implements Runnable {
+class WriteTask implements Runnable {
 
     private SelectionKey selectionKey;
 
-    public WriteTask(SelectionKey currentSelectionKey) {
+    WriteTask(SelectionKey currentSelectionKey) {
         selectionKey = currentSelectionKey;
     }
 
@@ -79,7 +79,7 @@ public class WriteTask implements Runnable {
                                 break;
 
                             case Consts.REQUEST_CHALLENGE:
-                                response = Consts.RESPONSE_ILLEGAL_REQUEST;
+                                response = Consts.RESPONSE_ILLEGAL_REQUEST; //no challenge request allowed via TCP
                                 break;
 
                             case Consts.REQUEST_SCORE:
@@ -135,7 +135,8 @@ public class WriteTask implements Runnable {
                     } catch (UserDB.SameUserException e) {
                         response = Consts.RESPONSE_SAME_USER;
                     } catch (ChallengeHandler.Challenge.GameTimeoutException e) {
-                        response = Consts.RESPONSE_CHALLENGE_TIMEOUT;
+                        response = Consts.RESPONSE_CHALLENGE_TIMEOUT + "\n";
+                        response += ChallengeHandler.instance.getRecap(matchId);
                     } catch (ChallengeHandler.Challenge.EndOfMatchException e) {
                         response += ChallengeHandler.instance.getRecap(matchId);
                     } catch (ChallengeHandler.Challenge.UnknownUsernameException e) {

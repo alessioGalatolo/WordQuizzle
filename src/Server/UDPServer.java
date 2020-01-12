@@ -5,10 +5,18 @@ import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Class that handles the UDP socket, it keeps waiting for
+ * incoming messages and splits them depending on the request
+ */
+class UDPServer extends Thread {
 
-public class UDPServer extends Thread {
+    /*
+        Stores the challenges waiting to be accepted
 
-
+        The key is the address of the user who have been challenged, the value
+        is the address of the user who started the challenge
+     */
     private ConcurrentHashMap<SocketAddress, SocketAddress> pendingChallenges = new ConcurrentHashMap<>();
 
 
@@ -25,14 +33,6 @@ public class UDPServer extends Thread {
                 try {
                     //wait for challenge request
                     socket.receive(request);
-
-                    /**
-                     * may receive:
-                     *
-                     *      challenge request
-                     *      ok statement from challenged
-                     *      not ok statement from challenged
-                     */
 
                     //get message string
                     String message = new String(buffer, 0, request.getLength(), StandardCharsets.UTF_8);
@@ -112,15 +112,9 @@ public class UDPServer extends Thread {
                             }
                             pendingChallenges.remove(challengedAddress);
 
-                            try {
+                            DatagramPacket challengeRefusedPacket = UserDB.instance.discardChallenge(challengerAddress, challengedAddress);
+                            socket.send(challengeRefusedPacket);
 
-                                DatagramPacket challengeRefusedPacket = UserDB.instance.discardChallenge(challengerAddress, challengedAddress);
-                                socket.send(challengeRefusedPacket);
-
-                            } catch (UserDB.UserNotFoundException e) {
-                                sendErrorMessage(socket, Consts.RESPONSE_CHALLENGE_REFUSED, challengerAddress);
-                                sendErrorMessage(socket, Consts.RESPONSE_CHALLENGE_REFUSED, challengerAddress);
-                            }
                             break;
 
 
@@ -140,6 +134,12 @@ public class UDPServer extends Thread {
         }
     }
 
+    /**
+     * Sends an error message through the UDP socket to the given address
+     * @param datagramSocket The UDP socket
+     * @param errorMessage The error message to be sent
+     * @param address The socket address to send the error to
+     */
     private void sendErrorMessage(DatagramSocket datagramSocket, String errorMessage, SocketAddress address) throws IOException {
         byte[] response = errorMessage.getBytes(StandardCharsets.UTF_8);
         DatagramPacket errorPacket = new DatagramPacket(response, response.length, address);
@@ -147,6 +147,13 @@ public class UDPServer extends Thread {
         datagramSocket.send(errorPacket);
     }
 
+    /**
+     * Sends an error message through the UDP socket to the given address
+     * @param datagramSocket The UDP socket
+     * @param errorMessage The error message to be sent
+     * @param address The inet address to  send the message to
+     * @param port The port of the address
+     */
     private void sendErrorMessage(DatagramSocket datagramSocket, String errorMessage, InetAddress address, int port) throws IOException {
         byte[] response = errorMessage.getBytes(StandardCharsets.UTF_8);
         DatagramPacket errorPacket = new DatagramPacket(response, response.length, address, port);
