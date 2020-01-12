@@ -14,7 +14,7 @@ import java.nio.charset.StandardCharsets;
  */
 class WriteTask implements Runnable {
 
-    private SelectionKey selectionKey;
+    private final SelectionKey selectionKey;
 
     WriteTask(SelectionKey currentSelectionKey) {
         selectionKey = currentSelectionKey;

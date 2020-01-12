@@ -101,9 +101,11 @@ public class Main {
                             case "score":
                                 writeRequest(client, Consts.getRequestScore(messageFragments[1]));
                                 System.out.println(readResponse(client));
+                                break;
                             case "friends":
                                 writeRequest(client, Consts.getRequestFriends(messageFragments[1]));
                                 System.out.println(readResponse(client));
+                                break;
                             case "quit":
                                 if(currentLoggedUser != null)
                                     System.out.println("You must logout before quitting");

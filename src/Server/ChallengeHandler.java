@@ -32,7 +32,7 @@ class ChallengeHandler {
 
     static ChallengeHandler instance = new ChallengeHandler();
 
-    private static String[] dictionary = null;
+    private String[] dictionary = null;
     private static ConcurrentHashMap<Integer, Challenge> activeChallenges = new ConcurrentHashMap<>();
 
 

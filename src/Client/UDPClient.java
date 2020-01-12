@@ -141,6 +141,11 @@ class UDPClient implements AutoCloseable{
      */
     public void close() {
         readerThread.interrupt();
+        try {
+            readerThread.join();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
         socket.close();
     }
 

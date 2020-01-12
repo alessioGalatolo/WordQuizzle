@@ -306,12 +306,14 @@ class UserDB {
      */
     String getRanking(String name){
         User user = usersTable.get(name);
-        User[] friends = relationsGraph.getLinkedNodes(user).toArray(new User[0]); //get array for faster access
-        Arrays.sort(friends, Comparator.comparingInt(User::getScore));//sort by the score
-        String[] ranking = new String[friends.length]; //ranking with name and score
+        var friends = relationsGraph.getLinkedNodes(user);
+        friends.add(user);
+        User[] rankingList = friends.toArray(new User[0]); //get array for faster access
+        Arrays.sort(rankingList, Comparator.comparingInt(User::getScore));//sort by the score
+        String[] ranking = new String[rankingList.length]; //ranking with name and score
 
         for(int i = 0; i < ranking.length; i++){
-            ranking[i] = friends[i].getName() + "\t" + friends[i].getScore();
+            ranking[i] = rankingList[i].getName() + " " + rankingList[i].getScore();
         }
         Gson gson = new Gson();
         return gson.toJson(ranking);
