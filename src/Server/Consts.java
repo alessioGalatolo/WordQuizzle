@@ -34,7 +34,7 @@ public class Consts {
     public static final String CHALLENGE_WORD_MISMATCH = "FAIL"; //when the user sends a wrong translation
     public static final int ITALIAN_WORD_MAX_LENGTH = 29; //https://www.focus.it/cultura/curiosita/qual-e-la-parola-piu-lunga-della-lingua-italiana
     public static final int WIN_SCORE_AMOUNT = 3;
-    public static final int LOSE_SCORE_AMOUNT = -1;
+    public static final int LOSE_SCORE_AMOUNT = 0; //TODO: maybe negative
 
     //requests from client
     public static final String REQUEST_LOGIN = "login";
@@ -89,8 +89,8 @@ public class Consts {
     }
 
 
-    public static String getTranslationResponseClient(int matchID, String user, String originalWord, String translatedWord) {
-        return Consts.REQUEST_NEXT_WORD + " " + matchID + " " + user + " " + originalWord + " " + translatedWord;
+    public static String getTranslationResponseClient(int matchID, String user, String translatedWord) {
+        return Consts.REQUEST_NEXT_WORD + " " + matchID + " " + user + " " + translatedWord;
     }
 
     /**

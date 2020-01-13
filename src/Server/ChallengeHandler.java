@@ -148,15 +148,14 @@ class ChallengeHandler {
      * Checks the correctness of the translation and updates the user score
      * @param matchId The match id
      * @param user The user who sent the translation
-     * @param originalWord The original word
      * @param userTranslatedWord The word translated by the user
      * @return The translation of the word
      * @throws Challenge.UnknownUsernameException When the given user is not in the challenge
      * @throws Challenge.GameTimeoutException If the user time has expired
      */
-    String checkTranslation(int matchId, String user,String originalWord, String userTranslatedWord) throws Challenge.UnknownUsernameException, Challenge.GameTimeoutException {
+    String checkTranslation(int matchId, String user, String userTranslatedWord) throws Challenge.UnknownUsernameException, Challenge.GameTimeoutException {
         Challenge challenge = activeChallenges.get(matchId);
-        String translatedWord = challenge.getTranslatedWord(originalWord);
+        String translatedWord = challenge.getUserLastWordTranlation(user);
         boolean outcome = translatedWord.equals(userTranslatedWord);
         if(outcome){
             challenge.updateScore(user, Consts.WIN_SCORE_AMOUNT);
@@ -272,6 +271,7 @@ class ChallengeHandler {
                     finished = true;
                     throw new GameTimeoutException();
                 }
+                return;
             }
             else if(user.equals(user2)) {
                 if(System.currentTimeMillis() - user2Timestamp < Consts.CHALLENGE_TIMEOUT)
@@ -280,6 +280,7 @@ class ChallengeHandler {
                     finished = true;
                     throw new GameTimeoutException();
                 }
+                return;
             }
             //no username matches found
             throw new UnknownUsernameException();
@@ -300,14 +301,6 @@ class ChallengeHandler {
             }
             //no username matches found
             throw new UnknownUsernameException();
-        }
-
-        @Override
-        public String toString() {
-            String recap = "Time elapsed since the beginning of the challenge: " + (System.currentTimeMillis() - user1Timestamp) + "\n";
-            recap += "User " + user1 + " scored a total of " + user1Score + " points" + "\n";
-            recap += "User " + user2 + " scored a total of " + user2Score + " points";
-            return recap;
         }
 
         /**
@@ -344,17 +337,35 @@ class ChallengeHandler {
             return null;
         }
 
-        /**
-         * Gets the provided translation of the given word
-         * @param originalWord The word to get the translation of
-         * @return The translation or null if the given word is not in the set
-         */
-        String getTranslatedWord(String originalWord) {
-            for(int i = 0; i < translatedWords.length; i++){
-                if(selectedWords[i].equals(originalWord))
-                    return translatedWords[i];
-            }
-            return null;
+//        /**
+//         * Gets the provided translation of the given word
+//         * @param originalWord The word to get the translation of
+//         * @return The translation or null if the given word is not in the set
+//         */
+//        String getTranslatedWord(String originalWord) {
+//            for(int i = 0; i < translatedWords.length; i++){
+//                if(selectedWords[i].equals(originalWord))
+//                    return translatedWords[i];
+//            }
+//            return null;
+//        }
+
+        //TODO: check correctness
+        String getUserLastWordTranlation(String user) throws UnknownUsernameException {
+            if(user.equals(user1))
+                return translatedWords[user1CompletedWords - 1];
+            if(user.equals(user2))
+                return translatedWords[user2CompletedWords - 1];
+
+            throw new UnknownUsernameException();
+        }
+
+        @Override
+        public String toString() {
+            String recap = "Time elapsed since the beginning of the challenge: " + (System.currentTimeMillis() - user1Timestamp) + "\n";
+            recap += "User " + user1 + " scored a total of " + user1Score + " points" + "\n";
+            recap += "User " + user2 + " scored a total of " + user2Score + " points";
+            return recap;
         }
 
 

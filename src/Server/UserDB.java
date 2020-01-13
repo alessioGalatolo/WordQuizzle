@@ -368,6 +368,8 @@ class UserDB {
                     e.printStackTrace();
                 }
             }
+            if(score < 0)
+                score = 0;
             return score;
         }
 
