@@ -19,7 +19,7 @@ public class Main {
     public static void main(String[] args) {
 
 
-        try {
+        try(Reactor reactor = new Reactor(Consts.TCP_PORT)) {
 
             //activate the remote object
             WQRegister wqRegister = new WQRegister();
@@ -32,77 +32,78 @@ public class Main {
 
             ThreadPoolExecutor threadPool = (ThreadPoolExecutor) Executors.newFixedThreadPool(1);//TODO: return to multi thread (multi responses with mt)
 
+            reactor.run(); //TODO: replace with start??
 
 
-            //try with resources
-            try(ServerSocketChannel serverChannel = ServerSocketChannel.open();
-                Selector selector = Selector.open()) {
-
-                //init server
-                ServerSocket serverSocket = serverChannel.socket(); //TODO: close?
-                InetSocketAddress address = new InetSocketAddress(Server.Consts.TCP_PORT); //local host
-                serverSocket.bind(address); //binds address
-                serverChannel.configureBlocking(false);
-                serverChannel.register(selector, SelectionKey.OP_ACCEPT);
-
-                //TODO: no termination is provided (yet)
-                while (true) {
-                    selector.select(); //blocking request
-
-                    //check every ready key.
-                    for(SelectionKey currentKey: selector.selectedKeys()){
-
-                        try {
-                            if (currentKey.isValid() && currentKey.isAcceptable()) {
-                                //accept new connection
-
-                                ServerSocketChannel server = (ServerSocketChannel) currentKey.channel();
-                                SocketChannel clientSocketChannel = server.accept();
-                                clientSocketChannel.configureBlocking(false);
-                                clientSocketChannel.register(selector, SelectionKey.OP_READ); //expecting a write from the client as the new operation
-
-                            } else if (currentKey.isValid() && currentKey.isReadable()) {
-                                /*
-                                    socket reads at most Server.Consts.ARRAY_INIT_SIZE bytes and puts the bytes read as an
-                                    attachment to the the selectionKey. If an array of byte was already attached, they
-                                    are joined and put back in the selectionKey.
-                                */
-
-                                threadPool.execute(new ReadTask(currentKey));
-
-                                currentKey.interestOps(SelectionKey.OP_WRITE | SelectionKey.OP_READ);
-
-                            } else if (currentKey.isValid() && currentKey.isWritable()) {
-                                /*
-                                    Checks the attachment of the selectionKey.
-                                    if a byte[] is found -> allocates a byteBuffer and tries to write it all. if an incomplete write happens, the remaining buffer is stored as an attachment
-                                    if a ByteBuffer is found -> an incomplete write happened, tries to complete it.
-                                 */
-                                threadPool.execute(new WriteTask(currentKey));
-
-                            } else {
-                                System.err.println("Key has not been recognised");
-                            }
-                        }catch (IOException e) {
-                            currentKey.cancel();
-                            try{
-                                currentKey.channel().close();
-                            }catch (IOException ex) {
-                                ex.printStackTrace();
-                            }
-                        }
-                    }
-
-                    selector.selectedKeys().clear();
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+//            //try with resources
+//            try(ServerSocketChannel serverChannel = ServerSocketChannel.open();
+//                Selector selector = Selector.open()) {
+//
+//                //init server
+//                ServerSocket serverSocket = serverChannel.socket(); //TODO: close?
+//                InetSocketAddress address = new InetSocketAddress(Server.Consts.TCP_PORT); //local host
+//                serverSocket.bind(address); //binds address
+//                serverChannel.configureBlocking(false);
+//                serverChannel.register(selector, SelectionKey.OP_ACCEPT);
+//
+//                //TODO: no termination is provided (yet)
+//                while (true) {
+//                    selector.select(); //blocking request
+//
+//                    //check every ready key.
+//                    for(SelectionKey currentKey: selector.selectedKeys()){
+//
+//                        try {
+//                            if (currentKey.isValid() && currentKey.isAcceptable()) {
+//                                //accept new connection
+//
+//                                ServerSocketChannel server = (ServerSocketChannel) currentKey.channel();
+//                                SocketChannel clientSocketChannel = server.accept();
+//                                clientSocketChannel.configureBlocking(false);
+//                                clientSocketChannel.register(selector, SelectionKey.OP_READ); //expecting a write from the client as the new operation
+//
+//                            } else if (currentKey.isValid() && currentKey.isReadable()) {
+//                                /*
+//                                    socket reads at most Server.Consts.ARRAY_INIT_SIZE bytes and puts the bytes read as an
+//                                    attachment to the the selectionKey. If an array of byte was already attached, they
+//                                    are joined and put back in the selectionKey.
+//                                */
+//
+//                                threadPool.execute(new ReadTask(currentKey));
+//
+//                                currentKey.interestOps(SelectionKey.OP_WRITE | SelectionKey.OP_READ);
+//
+//                            } else if (currentKey.isValid() && currentKey.isWritable()) {
+//                                /*
+//                                    Checks the attachment of the selectionKey.
+//                                    if a byte[] is found -> allocates a byteBuffer and tries to write it all. if an incomplete write happens, the remaining buffer is stored as an attachment
+//                                    if a ByteBuffer is found -> an incomplete write happened, tries to complete it.
+//                                 */
+//                                threadPool.execute(new WriteTask(currentKey));
+//
+//                            } else {
+//                                System.err.println("Key has not been recognised");
+//                            }
+//                        }catch (IOException e) {
+//                            currentKey.cancel();
+//                            try{
+//                                currentKey.channel().close();
+//                            }catch (IOException ex) {
+//                                ex.printStackTrace();
+//                            }
+//                        }
+//                    }
+//
+//                    selector.selectedKeys().clear();
+//                }
+//            } catch (IOException e) {
+//                e.printStackTrace();
+//            }
 
             threadPool.shutdown();
             udpServer.interrupt();
             UnicastRemoteObject.unexportObject(wqRegister, true);
-        } catch (RemoteException | AlreadyBoundException e) {
+        } catch (AlreadyBoundException | IOException e) {
             e.printStackTrace();
         }
     }
