@@ -42,7 +42,7 @@ class UDPClient implements AutoCloseable{
      * @param startChallenge A boolean to be set to true when the user has to start a challenge (TCP)
      * @param challengeRequestFun Function to be called when a new challenge arrives
      */
-    UDPClient(AtomicBoolean startChallenge, Predicate<String> challengeRequestFun) throws SocketException {
+    UDPClient(AtomicBoolean startChallenge, AtomicBoolean userBusy, Predicate<String> challengeRequestFun) throws SocketException {
         socket = new DatagramSocket();
         socket.setSoTimeout(Consts.UDP_CLIENT_TIMEOUT);
 
@@ -62,7 +62,7 @@ class UDPClient implements AutoCloseable{
                     if(messageFragments[0].equals(Consts.REQUEST_CHALLENGE)){
 
                         //checks if user accepts challenge
-                        if(challengeRequestFun.test(messageFragments[1])){
+                        if(!userBusy.get() && challengeRequestFun.test(messageFragments[1])){
                             //challenge accepted
                             byte[] okResponse = Consts.RESPONSE_OK.getBytes(StandardCharsets.UTF_8);
                             datagramPacket = new DatagramPacket(okResponse, okResponse.length, InetAddress.getByName(Consts.SERVER_ADDRESS), Consts.SERVER_UDP_PORT);
@@ -80,6 +80,7 @@ class UDPClient implements AutoCloseable{
                         latestMatchId = Integer.parseInt(messageFragments[1]);
                         waitingChallengeStart = false;
                         startChallenge.set(true);
+                        userBusy.set(true);
                     }else{
                         messagesLock.lock();
                         receivedMessages.add(message);
@@ -112,7 +113,6 @@ class UDPClient implements AutoCloseable{
             byte[] challengeRequest = Consts.getRequestChallenge(thisUser, otherUser).getBytes(StandardCharsets.UTF_8);
             DatagramPacket datagramPacket = new DatagramPacket(challengeRequest, challengeRequest.length, InetAddress.getByName(Consts.SERVER_ADDRESS), Consts.SERVER_UDP_PORT);
             socket.send(datagramPacket);
-            System.out.println("Sending " + new String(datagramPacket.getData(), datagramPacket.getOffset(), datagramPacket.getLength(), StandardCharsets.UTF_8));
             messagesLock.lock();
             int currentLength = receivedMessages.size();
             while (currentLength == receivedMessages.size())
@@ -126,7 +126,7 @@ class UDPClient implements AutoCloseable{
                 latestMatchId = Integer.parseInt(messageFragments[1]);
                 return true;
             }else {
-                System.out.println(message);
+                //System.err.println(message);
                 return false;
             }
         } catch (IOException | InterruptedException e){

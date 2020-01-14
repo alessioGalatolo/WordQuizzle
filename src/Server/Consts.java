@@ -1,6 +1,6 @@
 package Server;
 
-import java.net.URI;
+import java.util.Random;
 
 /**
  * Class with the most used constants
@@ -24,7 +24,8 @@ public class Consts {
     public static final String DICTIONARY_FILENAME = "dictionary";
     public static final String USER_DB_FILENAME = "user_db.json";
     public static final String USER_DB_FILENAME_TMP = "user_db_tmp.json";
-    public static final long DB_SAVE_INTERVAL = 5000;//ms
+    public static final long DB_SAVE_INTERVAL = 5000; //ms
+    public static final int CLIENT_TESTS = 10;
 
     //game constants
     public static final int CHALLENGE_WORDS_TO_MATCH = 6;
@@ -137,5 +138,19 @@ public class Consts {
 
     public static String getRequestFriends(String user) {
         return REQUEST_FRIEND_LIST + " " + user;
+    }
+
+
+    //User related
+    private static final Random random = new Random(System.currentTimeMillis());
+    public static final String BASE_USERNAME = "username";
+    public static final int N_CLIENTS = 10;
+
+    public static String getRandomUserName(String thisUser) {
+        String randomUser = thisUser;
+        while (randomUser.equals(thisUser)){
+            randomUser = BASE_USERNAME + random.nextInt(N_CLIENTS);
+        }
+        return randomUser;
     }
 }
