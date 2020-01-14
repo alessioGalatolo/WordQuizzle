@@ -1,5 +1,7 @@
 package Server;
 
+import java.net.URI;
+
 /**
  * Class with the most used constants
  */
@@ -21,11 +23,14 @@ public class Consts {
     public static final int INT_SIZE = 4;
     public static final String DICTIONARY_FILENAME = "dictionary";
     public static final String USER_DB_FILENAME = "user_db.json";
+    public static final String USER_DB_FILENAME_TMP = "user_db_tmp.json";
+    public static final long DB_SAVE_INTERVAL = 5000;//ms
 
     //game constants
     public static final int CHALLENGE_WORDS_TO_MATCH = 6;
     public static final int MAX_MESSAGE_LENGTH = 1024; //TODO: improve calculation
     public static final String SERVER_ADDRESS = "localhost";
+    public static final int MAX_TRANSLATIONS_PER_WORD = 5;
     private static final int CHALLENGE_TIME_PER_WORD = 20000; //in ms
     public static final long CHALLENGE_TIMEOUT = CHALLENGE_WORDS_TO_MATCH * CHALLENGE_TIME_PER_WORD;
     public static final String CHALLENGE_OK = "Ok";

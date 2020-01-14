@@ -4,10 +4,7 @@ import Commons.WQRegisterInterface;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 
-import java.io.BufferedReader;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -15,7 +12,9 @@ import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -38,6 +37,8 @@ class UserDB {
     //temporarily stores all the user involved in pending challenges for fast retrieval
     private ConcurrentHashMap<SocketAddress, ChallengeInfo> pendingChallenges = new ConcurrentHashMap<>();
 
+    private static byte[] oldJsonFile = new byte[0]; //contains the latest copy of this DB stored to file
+
     /*
       Init of the database, if found restores the users from file
      */
@@ -52,6 +53,24 @@ class UserDB {
         } catch (IOException e) {
             e.printStackTrace();
         }
+
+        /*
+            Daemon thread who write every interval the db to file
+         */
+        Thread saveThread = new Thread(() -> {
+            try {
+                while (true){
+                    Thread.sleep(Consts.DB_SAVE_INTERVAL);
+                    storeToFile();
+                }
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        });
+        saveThread.setDaemon(true);
+        saveThread.start();
+
+
     }
 
     /**
@@ -63,18 +82,31 @@ class UserDB {
 
     /**
      * Store the database to a file
+     * To prevent corrupted copies (es. program ends before write completes)
+     * it first writes to a tmp file and then attempts to rename it to the final name
      */
-    void storeToFile(){
+    private static void storeToFile(){
         Gson gson = new Gson();
         byte[] jsonFile = gson.toJson(instance).getBytes(StandardCharsets.UTF_8);
-        ByteBuffer byteBuffer = ByteBuffer.wrap(jsonFile);
-        try(FileChannel fileChannel = FileChannel.open(Paths.get(Consts.USER_DB_FILENAME), StandardOpenOption.WRITE, StandardOpenOption.CREATE)){
-            while (byteBuffer.hasRemaining()){
-                fileChannel.write(byteBuffer);
-            }
 
-        } catch (IOException e) {
-            e.printStackTrace();
+        if(jsonFile != oldJsonFile) {
+            ByteBuffer byteBuffer = ByteBuffer.wrap(jsonFile);
+
+            try (FileChannel dbSaveFile = FileChannel.open(Paths.get(Consts.USER_DB_FILENAME_TMP), StandardOpenOption.WRITE, StandardOpenOption.CREATE);) {
+//
+
+                while (byteBuffer.hasRemaining()) {
+                    dbSaveFile.write(byteBuffer);
+                }
+
+                //attempts to rename the file, outcome may be implementation specific (works with linux + jdk 12)
+                //TODO: check other systems
+                Files.move(Paths.get(Consts.USER_DB_FILENAME_TMP), Paths.get(Consts.USER_DB_FILENAME),
+                        StandardCopyOption.ATOMIC_MOVE , StandardCopyOption.REPLACE_EXISTING);
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
 
@@ -142,7 +174,7 @@ class UserDB {
         if(user == null)
             throw new UserNotFoundException();
 
-        //commented as it's only a minor error and should not compromise the system behavior
+        //commented out as it's only a minor error and should not compromise the system state
 //        if(user.isNotLogged())
 //            throw new NotLoggedException();
 
@@ -195,12 +227,11 @@ class UserDB {
 
 
         LinkedList<User> friends = relationsGraph.getLinkedNodes(friendlyUser);
-        JsonArray usernames = new JsonArray();
+        JsonArray userNames = new JsonArray();
         for(User user: friends){
-            usernames.add(user.getName());
+            userNames.add(user.getName());
         }
-        //TODO: maybe return a JSON array of usernames, check correctness
-        return usernames.toString();
+        return userNames.toString();
     }
 
     /**
@@ -309,7 +340,7 @@ class UserDB {
         var friends = relationsGraph.getLinkedNodes(user);
         friends.add(user);
         User[] rankingList = friends.toArray(new User[0]); //get array for faster access
-        Arrays.sort(rankingList, Comparator.comparingInt(User::getScore));//sort by the score
+        Arrays.sort(rankingList, (o1, o2) -> o2.getScore() - o1.getScore());//sort by the score
         String[] ranking = new String[rankingList.length]; //ranking with name and score
 
         for(int i = 0; i < ranking.length; i++){
@@ -459,7 +490,7 @@ class UserDB {
          * @return All the nodes linked to user
          */
         LinkedList<User> getLinkedNodes(User user){
-            return adjacencyList.get(user.getId());
+            return (LinkedList<User>) adjacencyList.get(user.getId()).clone();
         }
     }
 
