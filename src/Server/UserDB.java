@@ -35,9 +35,9 @@ class UserDB {
     private SimpleGraph relationsGraph = new SimpleGraph(); //store all the friend relationships of the user in a graph
 
     //temporarily stores all the user involved in pending challenges for fast retrieval
-    private ConcurrentHashMap<SocketAddress, ChallengeInfo> pendingChallenges = new ConcurrentHashMap<>();
+    transient private ConcurrentHashMap<SocketAddress, ChallengeInfo> pendingChallenges = new ConcurrentHashMap<>();
 
-    private static byte[] oldJsonFile = new byte[0]; //contains the latest copy of this DB stored to file
+    transient private static byte[] oldJsonFile = new byte[0]; //contains the latest copy of this DB stored to file
 
     /*
       Init of the database, if found restores the users from file
@@ -50,8 +50,10 @@ class UserDB {
         } catch (FileNotFoundException e) {
             //file doesn't exist, yet
             instance = new UserDB();
-        } catch (IOException e) {
+        } catch (Exception e) {
             e.printStackTrace();
+            //some error occurred, keep going
+            instance = new UserDB();
         }
 
         /*
@@ -68,7 +70,7 @@ class UserDB {
             }
         });
         saveThread.setDaemon(true);
-        saveThread.start();
+//        saveThread.start();
 
 
     }
@@ -360,7 +362,7 @@ class UserDB {
     static class User{
         private String name;
         private String password;
-        private InetAddress loginAddress = null;
+        transient private InetAddress loginAddress = null;
         private Vector<Integer> pendingMatchList = new Vector<>();
         private Vector<Integer> doneMatchList = new Vector<>();
         private int UDPPort;

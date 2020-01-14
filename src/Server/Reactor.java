@@ -1,13 +1,11 @@
 package Server;
 
-
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.Iterator;
 
 
 public class Reactor extends Thread implements AutoCloseable {
@@ -15,13 +13,13 @@ public class Reactor extends Thread implements AutoCloseable {
     private final Selector selector;
     private final ServerSocketChannel serverSocket;
 
-    public Reactor(int port) throws IOException {
+    Reactor(int port) throws IOException {
         selector = Selector.open();
         serverSocket = ServerSocketChannel.open();
         serverSocket.socket().bind(new InetSocketAddress(port));
         serverSocket.configureBlocking(false);
         SelectionKey selectionKey = serverSocket.register(selector, SelectionKey.OP_ACCEPT);
-        selectionKey.attach(new Acceptor());
+        selectionKey.attach("");
     }
 
 
@@ -31,18 +29,15 @@ public class Reactor extends Thread implements AutoCloseable {
             while (!interrupted()) {
                 selector.select();
 
-                Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
-                while (iterator.hasNext()) {
-                    SelectionKey selectedKey = iterator.next();
-                    Runnable r = (Runnable) (selectedKey.attachment());
-                    if (r instanceof Acceptor){
+                for (SelectionKey selectedKey : selector.selectedKeys()) {
+                    Object object = (selectedKey.attachment());
+                    if (object instanceof String) {
                         SocketChannel channel = serverSocket.accept();
                         if (channel != null)
                             new Handler(selector, channel);
-                    }else
-                        r.run(); //TODO: start?
-
-                    iterator.remove();
+                    } else if (object instanceof Runnable){
+                        ((Runnable) object).run(); //TODO: start?
+                    }
                 }
                 selector.selectedKeys().clear();
             }
@@ -53,28 +48,11 @@ public class Reactor extends Thread implements AutoCloseable {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() throws IOException, InterruptedException {
         this.interrupt();
-//        threadPool.shutdown();
-//        threadPool.awaitTermination(Integer.MAX_VALUE, TimeUnit.MILLISECONDS);
+        join();
         selector.close();
         serverSocket.close();
-    }
-
-
-    private class Acceptor implements Runnable {
-
-        @Override
-        public void run() {
-            try {
-                SocketChannel channel = serverSocket.accept();
-                if (channel != null)
-                    new Handler(selector, channel);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-
     }
 
 }

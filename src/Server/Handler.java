@@ -40,7 +40,6 @@ final class Handler implements Runnable {
 
     @Override
     public void run() {
-//            System.out.println("Handler is running");
         try {
             if(state == IO_OPERATION) {
                 if (selectionKey.isValid() && selectionKey.isWritable())
@@ -64,16 +63,8 @@ final class Handler implements Runnable {
             //nothing to read
             selectionKey.interestOps(SelectionKey.OP_WRITE);
         }else{
-//                input.flip();
-//                System.out.println(new String(input.array(), input.arrayOffset(), input.remaining(), StandardCharsets.UTF_8));
-//                input.flip();
-//            if (inputIsComplete()) {
-//                process();
-//                state = WRITING;
-            // Normally also do first write now
             selectionKey.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
         }
-//            }
     }
 
     private void send() throws IOException {

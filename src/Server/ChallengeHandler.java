@@ -1,6 +1,7 @@
 package Server;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
 import java.io.BufferedReader;
@@ -155,14 +156,23 @@ class ChallengeHandler {
      */
     String checkTranslation(int matchId, String user, String userTranslatedWord) throws Challenge.UnknownUsernameException, Challenge.GameTimeoutException {
         Challenge challenge = activeChallenges.get(matchId);
-        String translatedWord = challenge.getUserLastWordTranlation(user);
-        boolean outcome = translatedWord.equals(userTranslatedWord);
+        String[] translatedWord = challenge.getUserLastWordTranslation(user);
+        String correctTranslation = translatedWord[0];
+        boolean outcome = false;
+        int i = 0;
+        while (i < translatedWord.length && !outcome){
+            if(userTranslatedWord.equals(translatedWord[i])) {
+                outcome = true;
+                correctTranslation = translatedWord[i];
+            }
+            i++;
+        }
         if(outcome){
             challenge.updateScore(user, Consts.WIN_SCORE_AMOUNT);
         }else{
             challenge.updateScore(user, Consts.LOSE_SCORE_AMOUNT);
         }
-        return translatedWord;
+        return correctTranslation;
     }
 
     int getScore(int matchId, String user) throws Challenge.UnknownUsernameException {
@@ -195,7 +205,7 @@ class ChallengeHandler {
         private int user2Score = 0;
         private boolean finished = false; //stores whether or not the challenge is over
         private String[] selectedWords = new String[Consts.CHALLENGE_WORDS_TO_MATCH]; //contains selected words to be translated
-        private String[] translatedWords = new String[Consts.CHALLENGE_WORDS_TO_MATCH];
+        private String[][] translatedWords = new String[Consts.CHALLENGE_WORDS_TO_MATCH][Consts.MAX_TRANSLATIONS_PER_WORD];
         private static Random random = new Random(GregorianCalendar.getInstance().getTimeInMillis()); //random generator to get the challenge words
 
         /**
@@ -214,8 +224,8 @@ class ChallengeHandler {
             }
 
             for(int i = 0; i < selectedWords.length; i++){
-                String translatedWord = getTranslation(selectedWords[i]);
-                translatedWords[i] = translatedWord == null ? "": translatedWord;
+                String[] translatedWord = getTranslation(selectedWords[i]);
+                translatedWords[i] = translatedWord == null ? new String[]{""} : translatedWord;
             }
         }
 
@@ -308,7 +318,7 @@ class ChallengeHandler {
          * @param originalWord The original word to be translated
          * @return The correct translation
          */
-        private String getTranslation(String originalWord) {
+        private String[] getTranslation(String originalWord) {
             try {
                 URL url = new URL(Consts.getTranslationURL(originalWord));
                 System.out.println("Doing an http request");
@@ -323,9 +333,15 @@ class ChallengeHandler {
                     JsonObject jsonObject = gson.fromJson(stringBuilder.toString(), JsonObject.class);
 
                     //TODO: change score based on Levenshtein distance
-                    return jsonObject.get("responseData").getAsJsonObject().get("translatedText").getAsString();
-
-
+                    String[] translations = new String[Consts.MAX_TRANSLATIONS_PER_WORD];
+                    translations[0] = jsonObject.get("responseData").getAsJsonObject().get("translatedText").getAsString();
+                    JsonArray jsonArray = jsonObject.getAsJsonArray("matches");
+                    int i = 0;
+                    while (i < translations.length - 1 && i < jsonArray.size()){
+                        translations[i] = jsonArray.get(i).getAsJsonObject().get("translation").getAsString();
+                        i++;
+                    }
+                    return translations;
 
                 }catch (IOException e){
                     e.printStackTrace();
@@ -351,18 +367,18 @@ class ChallengeHandler {
 //        }
 
         //TODO: check correctness
-        String getUserLastWordTranlation(String user) throws UnknownUsernameException {
-            if(user.equals(user1))
+        String[] getUserLastWordTranslation(String user) throws UnknownUsernameException {
+            if(user.equals(user1)) {
                 return translatedWords[user1CompletedWords - 1];
-            if(user.equals(user2))
+            }if(user.equals(user2)) {
                 return translatedWords[user2CompletedWords - 1];
-
+            }
             throw new UnknownUsernameException();
         }
 
         @Override
         public String toString() {
-            String recap = "Time elapsed since the beginning of the challenge: " + (System.currentTimeMillis() - user1Timestamp) + "\n";
+            String recap = "Time elapsed since the beginning of the challenge: " + (System.currentTimeMillis() - user1Timestamp)/1000 + " s\n";
             recap += "User " + user1 + " scored a total of " + user1Score + " points" + "\n";
             recap += "User " + user2 + " scored a total of " + user2Score + " points";
             return recap;
