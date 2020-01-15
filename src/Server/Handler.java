@@ -3,6 +3,7 @@ package Server;
 import Commons.WQRegisterInterface;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
@@ -99,33 +100,37 @@ final class Handler implements Runnable {
         int matchId = 0;
 
         try {
+            InetAddress clientAddress = ((InetSocketAddress) ((SocketChannel) selectionKey.channel()).getRemoteAddress()).getAddress();
+            int clientPort = ((InetSocketAddress) ((SocketChannel) selectionKey.channel()).getRemoteAddress()).getPort();
+
             switch (messageFragments[0]) {
                 case Consts.REQUEST_LOGIN:
                     if (messageFragments.length > 3)
                         UserDB.instance.logUser(messageFragments[1], messageFragments[2],
-                                ((InetSocketAddress) ((SocketChannel) selectionKey.channel()).getRemoteAddress()).getAddress(),
+                                clientAddress,
+                                clientPort,
                                 Integer.parseInt(messageFragments[3]));
                     else
                         UserDB.instance.logUser(messageFragments[1], messageFragments[2],
-                                ((InetSocketAddress) ((SocketChannel) selectionKey.channel()).getRemoteAddress()).getAddress());
+                                clientAddress,
+                                clientPort);
 
                     response = Consts.RESPONSE_OK;
                     break;
 
                 case Consts.REQUEST_LOGOUT:
-                    UserDB.instance.logoutUser(messageFragments[1]);
+                    UserDB.instance.logoutUser(messageFragments[1], clientAddress, clientPort);
                     response = Consts.RESPONSE_OK;
                     break;
 
                 case Consts.REQUEST_ADD_FRIEND:
-                    UserDB.instance.addFriendship(messageFragments[1], messageFragments[2]);
+                    UserDB.instance.addFriendship(messageFragments[1], messageFragments[2], clientAddress, clientPort);
                     response = Consts.RESPONSE_OK;
-//                                response = Consts.RESPONSE_USER_NOT_FOUND; //TODO: check if user1 or user2
 
                     break;
 
                 case Consts.REQUEST_FRIEND_LIST:
-                    response = UserDB.instance.getFriends(messageFragments[1]);
+                    response = UserDB.instance.getFriends(messageFragments[1], clientAddress, clientPort);
                     break;
 
                 case Consts.REQUEST_CHALLENGE:
@@ -133,11 +138,11 @@ final class Handler implements Runnable {
                     break;
 
                 case Consts.REQUEST_SCORE:
-                    response = String.valueOf(UserDB.instance.getScore(messageFragments[1]));
+                    response = String.valueOf(UserDB.instance.getScore(messageFragments[1], clientAddress, clientPort));
                     break;
 
                 case Consts.REQUEST_RANKINGS:
-                    response = UserDB.instance.getRanking(messageFragments[1]);
+                    response = UserDB.instance.getRanking(messageFragments[1], clientAddress, clientPort);
                     break;
 
                 /*
@@ -187,7 +192,7 @@ final class Handler implements Runnable {
             response = Consts.RESPONSE_CHALLENGE_TIMEOUT + "\n";
             response += ChallengeHandler.instance.getRecap(matchId);
         } catch (ChallengeHandler.Challenge.EndOfMatchException e) {
-            response += ChallengeHandler.instance.getRecap(matchId);
+            response += ChallengeHandler.instance.getRecap(matchId); //TODO: wait other user
         } catch (ChallengeHandler.Challenge.UnknownUsernameException e) {
             response = Consts.RESPONSE_UNKNOWN_USERNAME;
         }

@@ -50,7 +50,7 @@ class UDPServer extends Thread {
                             String errorMessage = null;//stores, eventually, the error message
 
                             try {
-                                DatagramPacket challengePacket = UserDB.instance.challengeFriend(challenger, challenged);
+                                DatagramPacket challengePacket = UserDB.instance.challengeFriend(challenger, challenged, request.getPort());
                                 socket.send(challengePacket);
 
                                 challengedAddress = challengePacket.getSocketAddress();

@@ -135,21 +135,22 @@ class UserDB {
      * @param username The name of the user
      * @param password His password
      * @param address His current IP address
+     * @param TCPPort His current TCP port
      * @param UDPPort His preferred UDP port
      * @throws UserNotFoundException When the username is not to be found in the DB
      * @throws WQRegisterInterface.InvalidPasswordException When the given password doesn't match the original one
      * @throws AlreadyLoggedException When the user is already logged
      */
-    void logUser(String username, String password, InetAddress address, int UDPPort) throws UserNotFoundException, WQRegisterInterface.InvalidPasswordException, AlreadyLoggedException {
+    void logUser(String username, String password, InetAddress address, int TCPPort, int UDPPort) throws UserNotFoundException, WQRegisterInterface.InvalidPasswordException, AlreadyLoggedException {
         User user = usersTable.get(username);
         if(user == null)
             throw new UserNotFoundException();
-        if(user.isLogged())
+        if(user.isLogged(address, TCPPort))
             throw new AlreadyLoggedException();
         if(user.notMatches(username, password))
             throw new WQRegisterInterface.InvalidPasswordException();
 
-        user.login(address, UDPPort);
+        user.login(address, TCPPort, UDPPort);
     }
 
     /**
@@ -157,28 +158,27 @@ class UserDB {
      * @param username The name of the user
      * @param password His password
      * @param address His current IP address
+     * @param TCPPort His current TCP port
      * @throws UserNotFoundException When the username is not to be found in the DB
      * @throws WQRegisterInterface.InvalidPasswordException When the given password doesn't match the original one
      * @throws AlreadyLoggedException When the user is already logged
      */
-    void logUser(String username, String password, InetAddress address) throws UserNotFoundException, WQRegisterInterface.InvalidPasswordException, AlreadyLoggedException {
-        logUser(username, password, address, Consts.UDP_PORT);
+    void logUser(String username, String password, InetAddress address, int TCPPort) throws UserNotFoundException, WQRegisterInterface.InvalidPasswordException, AlreadyLoggedException {
+        logUser(username, password, address, TCPPort,  Consts.UDP_PORT);
     }
 
     /**
      * Logs out the user
      * @param username The name of the user
      * @throws UserNotFoundException If the user could not be found
-     * @throws NotLoggedException If the user is not logged in (currently disabled)
+     * @throws NotLoggedException If the user is not logged in
      */
-    void logoutUser(String username) throws UserNotFoundException, NotLoggedException {
+    void logoutUser(String username, InetAddress address, int TCPPort) throws UserNotFoundException, NotLoggedException {
         User user = usersTable.get(username);
         if(user == null)
             throw new UserNotFoundException();
-
-        //commented out as it's only a minor error and should not compromise the system state
-//        if(user.isNotLogged())
-//            throw new NotLoggedException();
+        if(!user.isLogged(address, TCPPort))
+            throw new NotLoggedException();
 
         user.logout();
     }
@@ -195,7 +195,7 @@ class UserDB {
      * @throws NotLoggedException If the requesting user is not logged
      * @throws SameUserException If the nick provided are the same
      */
-    void addFriendship(String username1, String username2) throws UserNotFoundException, AlreadyFriendsException, NotLoggedException, SameUserException {
+    void addFriendship(String username1, String username2, InetAddress address, int TCPPort) throws UserNotFoundException, AlreadyFriendsException, NotLoggedException, SameUserException {
         if(username1.equals(username2))
             throw new SameUserException();
 
@@ -204,7 +204,7 @@ class UserDB {
 
         if(user1 == null || user2 == null)
             throw new UserNotFoundException();
-        if(user1.isNotLogged())
+        if(!user1.isLogged(address, TCPPort))
             throw new NotLoggedException();
         if(relationsGraph.nodesAreLinked(user1, user2))
             throw new AlreadyFriendsException();
@@ -215,16 +215,18 @@ class UserDB {
     /**
      * Retrieves the friend list of the given user
      * @param username The username whose friends to return
+     * @param address His current IP address
+     * @param TCPPort His current TCP port
      * @return A json array of String of the friends
      * @throws UserNotFoundException If the given user were not found
      * @throws NotLoggedException If the given user is not logged in
      */
-    String getFriends(String username) throws UserNotFoundException, NotLoggedException {
+    String getFriends(String username, InetAddress address, int TCPPort) throws UserNotFoundException, NotLoggedException {
         User friendlyUser = usersTable.get(username);
 
         if (friendlyUser == null)
             throw new UserNotFoundException();
-        if(friendlyUser.isNotLogged())
+        if(!friendlyUser.isLogged(address, TCPPort))
             throw new NotLoggedException();
 
 
@@ -245,7 +247,7 @@ class UserDB {
      * @return The datagram packet to be sent to the user who got challenged
      */
     //TODO: fix username swap
-    DatagramPacket challengeFriend(String challengerName, String challengedName) throws UserNotFoundException, NotFriendsException, NotLoggedException, SameUserException {
+    DatagramPacket challengeFriend(String challengerName, String challengedName, int challengerPort) throws UserNotFoundException, NotFriendsException, NotLoggedException, SameUserException {
         if(challengedName.equals(challengerName))
             throw new SameUserException();
 
@@ -259,7 +261,7 @@ class UserDB {
         if(relationsGraph.nodesAreNotLinked(challenger, challenged))
             throw new NotFriendsException();
 
-        if(challenger.isNotLogged() || challenged.isNotLogged())
+        if(!challenger.isLogged(challengerPort) || !challenged.isLogged())
             throw new NotLoggedException();
 
         //send challenge request to the other user
@@ -324,10 +326,16 @@ class UserDB {
     /**
      * Retrieves the score of the given user
      * @param name The name of the user
+     * @param address His current IP address
+     * @param TCPPort His current TCP port
      * @return The score of the given user
      */
-    int getScore(String name){
+    int getScore(String name, InetAddress address, int TCPPort) throws NotLoggedException, UserNotFoundException {
         User user = usersTable.get(name);
+        if(user == null)
+            throw new UserNotFoundException();
+        if(!user.isLogged(address, TCPPort))
+            throw new NotLoggedException();
 
         return user.getScore();
     }
@@ -335,10 +343,16 @@ class UserDB {
     /**
      * Retrieves the ranking by score of all the friends of the given user
      * @param name The name of the user
+     * @param address His current IP address
+     * @param TCPPort His current TCP port
      * @return A json object of a string array with name and ranking of each user
      */
-    String getRanking(String name){
+    String getRanking(String name, InetAddress address, int TCPPort) throws NotLoggedException, UserNotFoundException {
         User user = usersTable.get(name);
+        if(user == null)
+            throw new UserNotFoundException();
+        if(!user.isLogged(address, TCPPort))
+            throw new NotLoggedException();
         var friends = relationsGraph.getLinkedNodes(user);
         friends.add(user);
         User[] rankingList = friends.toArray(new User[0]); //get array for faster access
@@ -363,6 +377,7 @@ class UserDB {
         private String name;
         private String password;
         transient private InetAddress loginAddress = null;
+        private int TCPPort;
         private Vector<Integer> pendingMatchList = new Vector<>();
         private Vector<Integer> doneMatchList = new Vector<>();
         private int UDPPort;
@@ -426,8 +441,9 @@ class UserDB {
             return !matches(name, password);
         }
 
-        void login(InetAddress address, int UDPPort) {
+        void login(InetAddress address, int TCPPort, int UDPPort) {
             loginAddress = address;
+            this.TCPPort = TCPPort;
             this.UDPPort = UDPPort;
         }
 
@@ -436,13 +452,19 @@ class UserDB {
             UDPPort = 0;
         }
 
-        boolean isLogged() {
+        boolean isLogged(InetAddress address, int TCPPort) {
+            return loginAddress != null && loginAddress.equals(address) && this.TCPPort == TCPPort;
+        }
+
+
+        boolean isLogged(int UDPPort) {
+            return loginAddress != null && this.UDPPort == UDPPort;
+        }
+
+        boolean isLogged(){
             return loginAddress != null;
         }
 
-        boolean isNotLogged() {
-            return loginAddress == null;
-        }
 
         void addMatch(int matchId) {
             pendingMatchList.add(matchId);

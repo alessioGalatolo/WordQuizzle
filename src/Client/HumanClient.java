@@ -31,6 +31,8 @@ public class HumanClient {
             //socket init
             SocketAddress address = new InetSocketAddress(Consts.TCP_PORT);
 
+            System.out.println(Command.usage());
+
             try(BufferedReader input = new BufferedReader(new InputStreamReader(System.in));
                 SocketChannel client = SocketChannel.open(address);
                 UDPClient udpClient = new UDPClient(incomingChallenge, userBusy, (String otherUser) -> {
