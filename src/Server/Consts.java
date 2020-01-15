@@ -25,18 +25,18 @@ public class Consts {
     public static final String USER_DB_FILENAME = "user_db.json";
     public static final String USER_DB_FILENAME_TMP = "user_db_tmp.json";
     public static final long DB_SAVE_INTERVAL = 5000; //ms
-    public static final int CLIENT_TESTS = 10;
 
     //game constants
     public static final int CHALLENGE_WORDS_TO_MATCH = 6;
     public static final int MAX_MESSAGE_LENGTH = 1024; //TODO: improve calculation
     public static final String SERVER_ADDRESS = "localhost";
     public static final int MAX_TRANSLATIONS_PER_WORD = 5;
+    public static final String NOT_A_WORD = "ThisIsNotAWord";
     private static final int CHALLENGE_TIME_PER_WORD = 20000; //in ms
     public static final long CHALLENGE_TIMEOUT = CHALLENGE_WORDS_TO_MATCH * CHALLENGE_TIME_PER_WORD;
     public static final String CHALLENGE_OK = "Ok";
     public static final String CHALLENGE_REFUSED = "challenge_refused";
-    public static final long CHALLENGE_REQUEST_TIMEOUT = 10000; //time to wait before a challenge request expires
+    public static final long CHALLENGE_REQUEST_TIMEOUT = 5000; //time to wait before a challenge request expires
     public static final String CHALLENGE_WORD_MISMATCH = "FAIL"; //when the user sends a wrong translation
     public static final int ITALIAN_WORD_MAX_LENGTH = 29; //https://www.focus.it/cultura/curiosita/qual-e-la-parola-piu-lunga-della-lingua-italiana
     public static final int WIN_SCORE_AMOUNT = 3;
@@ -144,7 +144,8 @@ public class Consts {
     //User related
     private static final Random random = new Random(System.currentTimeMillis());
     public static final String BASE_USERNAME = "username";
-    public static final int N_CLIENTS = 10;
+    public static final int N_CLIENTS = 20;
+    public static final int CLIENT_TESTS = 100;
 
     public static String getRandomUserName(String thisUser) {
         String randomUser = thisUser;

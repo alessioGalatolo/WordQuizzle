@@ -36,7 +36,7 @@ public class Reactor extends Thread implements AutoCloseable {
                         if (channel != null)
                             new Handler(selector, channel);
                     } else if (object instanceof Runnable){
-                        ((Runnable) object).run(); //TODO: start?
+                        ((Runnable) object).run();
                     }
                 }
                 selector.selectedKeys().clear();

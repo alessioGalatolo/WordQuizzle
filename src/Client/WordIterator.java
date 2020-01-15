@@ -70,6 +70,10 @@ class WordIterator {
                         match.lastTranslatedWord = messageFragments[3];
                         break;
                     default:
+                        if(wordIndex < Consts.CHALLENGE_WORDS_TO_MATCH + 1) {
+                            match.errorOccurred = true;
+                            timeout = true;
+                        }
                         recap += message + "\n";
                         break;
                 }
@@ -105,6 +109,7 @@ class WordIterator {
         private String lastWord = ""; //last word translated by the user
         private String lastTranslatedWord = ""; //last word correct translation
         private String nextWord = ""; //next word to be translated
+        private Boolean errorOccurred = false;
 
         boolean isLastWordCorrect() {
             return lastWordCorrect;
@@ -120,6 +125,10 @@ class WordIterator {
 
         String getNextWord() {
             return nextWord;
+        }
+
+        public Boolean getErrorOccurred() {
+            return errorOccurred;
         }
     }
 }

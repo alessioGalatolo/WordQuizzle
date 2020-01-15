@@ -76,8 +76,8 @@ public class AutoClient {
                 }
 
                 if (outcome && command == Command.CHALLENGE) {
-                        WordIterator wordIterator = new WordIterator(client, udpClient.getLatestMatchId(), currentLoggedUser);
-                        startChallenge(wordIterator, userBusy, random);
+                    WordIterator wordIterator = new WordIterator(client, udpClient.getLatestMatchId(), currentLoggedUser);
+                    startChallenge(wordIterator, userBusy, random);
                 }
 
             }
@@ -98,7 +98,7 @@ public class AutoClient {
             WordIterator.Match match = wordIterator.next(lastTranslation);
             if(match != null) {
                 if (!match.getNextWord().isBlank()) {
-                    lastTranslation = random.nextBoolean() ? "wrongWord": getTranslation(match.getNextWord());
+                    lastTranslation = random.nextBoolean() ? Consts.NOT_A_WORD: getTranslation(match.getNextWord());
                 }
             }
         }
@@ -132,7 +132,7 @@ public class AutoClient {
         } catch (MalformedURLException e) {
             e.printStackTrace();
         }
-        return "";
+        return Consts.NOT_A_WORD;
     }
 
 }

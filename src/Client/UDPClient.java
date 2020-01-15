@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -57,6 +58,7 @@ class UDPClient implements AutoCloseable{
                     socket.receive(datagramPacket);
                     String message = new String(datagramPacket.getData(), 0, datagramPacket.getLength(), StandardCharsets.UTF_8);
                     String[] messageFragments = message.split(" ");
+                    System.out.println(Thread.currentThread().getName() + " udp received " + message);
 
                     //if message contains a challenge request
                     if(messageFragments[0].equals(Consts.REQUEST_CHALLENGE)){
@@ -111,12 +113,16 @@ class UDPClient implements AutoCloseable{
     Boolean requestChallenge(String thisUser, String otherUser){
         try {
             byte[] challengeRequest = Consts.getRequestChallenge(thisUser, otherUser).getBytes(StandardCharsets.UTF_8);
+            System.out.println(Thread.currentThread().getName() + " udp sent " + new String(challengeRequest));
             DatagramPacket datagramPacket = new DatagramPacket(challengeRequest, challengeRequest.length, InetAddress.getByName(Consts.SERVER_ADDRESS), Consts.SERVER_UDP_PORT);
             socket.send(datagramPacket);
             messagesLock.lock();
             int currentLength = receivedMessages.size();
             while (currentLength == receivedMessages.size())
-                newMessage.await();
+                if(!newMessage.await(Consts.CHALLENGE_REQUEST_TIMEOUT * 2, TimeUnit.MILLISECONDS)) {
+                    messagesLock.unlock();
+                    return false;
+                }
 
             String message = receivedMessages.get(currentLength);
             String[] messageFragments = message.split(" ");
@@ -126,7 +132,7 @@ class UDPClient implements AutoCloseable{
                 latestMatchId = Integer.parseInt(messageFragments[1]);
                 return true;
             }else {
-                //System.err.println(message);
+                System.err.println(message);
                 return false;
             }
         } catch (IOException | InterruptedException e){

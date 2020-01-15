@@ -20,7 +20,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.lang.Math.abs;
 
-//TODO: check thread-safety
 /**
  * A class that handles the challenges: Creates all the challenges, keeps
  * their score and their state
@@ -34,7 +33,7 @@ class ChallengeHandler {
     static ChallengeHandler instance = new ChallengeHandler();
 
     private String[] dictionary = null;
-    private static ConcurrentHashMap<Integer, Challenge> activeChallenges = new ConcurrentHashMap<>();
+    private static ConcurrentHashMap<Integer, Challenge> challenges = new ConcurrentHashMap<>();
 
 
     /**
@@ -120,7 +119,7 @@ class ChallengeHandler {
      * @return The word to be translated
      */
     String getNextWord(int matchId, String user) throws Challenge.EndOfMatchException, Challenge.UnknownUsernameException {
-        return activeChallenges.get(matchId).getNextWord(user);
+        return challenges.get(matchId).getNextWord(user);
     }
 
     /**
@@ -131,7 +130,7 @@ class ChallengeHandler {
      */
     int createChallenge(String user1, String user2){
         Challenge newChallenge = new Challenge(user1, user2, dictionary);
-        activeChallenges.put(newChallenge.getId(), newChallenge);
+        challenges.put(newChallenge.getId(), newChallenge);
         return newChallenge.getId();
     }
 
@@ -141,7 +140,7 @@ class ChallengeHandler {
      * @return A string with the recap
      */
     String getRecap(int matchId) {
-        return activeChallenges.get(matchId).toString();
+        return challenges.get(matchId).toString();
     }
 
 
@@ -155,7 +154,7 @@ class ChallengeHandler {
      * @throws Challenge.GameTimeoutException If the user time has expired
      */
     String checkTranslation(int matchId, String user, String userTranslatedWord) throws Challenge.UnknownUsernameException, Challenge.GameTimeoutException {
-        Challenge challenge = activeChallenges.get(matchId);
+        Challenge challenge = challenges.get(matchId);
         String[] translatedWord = challenge.getUserLastWordTranslation(user);
         String correctTranslation = translatedWord[0];
         boolean outcome = false;
@@ -176,11 +175,11 @@ class ChallengeHandler {
     }
 
     int getScore(int matchId, String user) throws Challenge.UnknownUsernameException {
-        return activeChallenges.get(matchId).getScore(user);
+        return challenges.get(matchId).getScore(user);
     }
 
     boolean challengeIsFinished(int matchId) {
-        return activeChallenges.get(matchId).finished;
+        return challenges.get(matchId).finished;
     }
 
     /**
@@ -262,7 +261,7 @@ class ChallengeHandler {
                 }
             }
             //no match for the username
-            throw new UnknownUsernameException();
+            throw new UnknownUsernameException("User " + user + " was not found in: " + user1 + user2);
         }
 
 
@@ -293,7 +292,7 @@ class ChallengeHandler {
                 return;
             }
             //no username matches found
-            throw new UnknownUsernameException();
+            throw new UnknownUsernameException("User " + user + " was not found in: " + user1 + user2);
         }
 
         /**
@@ -310,7 +309,7 @@ class ChallengeHandler {
                 return user2Score;
             }
             //no username matches found
-            throw new UnknownUsernameException();
+            throw new UnknownUsernameException("User " + user + " was not found in: " + user1 + user2);
         }
 
         /**
@@ -350,30 +349,17 @@ class ChallengeHandler {
                 e.printStackTrace();
             }
 
-            return null;
+            return new String[]{Consts.NOT_A_WORD};
         }
 
-//        /**
-//         * Gets the provided translation of the given word
-//         * @param originalWord The word to get the translation of
-//         * @return The translation or null if the given word is not in the set
-//         */
-//        String getTranslatedWord(String originalWord) {
-//            for(int i = 0; i < translatedWords.length; i++){
-//                if(selectedWords[i].equals(originalWord))
-//                    return translatedWords[i];
-//            }
-//            return null;
-//        }
 
-        //TODO: check correctness
         String[] getUserLastWordTranslation(String user) throws UnknownUsernameException {
             if(user.equals(user1)) {
                 return translatedWords[user1CompletedWords - 1];
             }if(user.equals(user2)) {
                 return translatedWords[user2CompletedWords - 1];
             }
-            throw new UnknownUsernameException();
+            throw new UnknownUsernameException("User " + user + " was not found in: " + user1 + user2);
         }
 
         @Override
@@ -392,6 +378,9 @@ class ChallengeHandler {
         }
 
         class UnknownUsernameException extends Exception {
+            UnknownUsernameException(String s) {
+                super(s);
+            }
         }
     }
 

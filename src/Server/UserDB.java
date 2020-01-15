@@ -70,7 +70,7 @@ class UserDB {
             }
         });
         saveThread.setDaemon(true);
-//        saveThread.start();
+        saveThread.start();
 
 
     }
@@ -460,6 +460,8 @@ class UserDB {
     /**
      * A non-oriented graph implemented with an adjacencyList
      * requires that user has an unique id to be used to access array location
+     *
+     * Thread safety assured by the use of vector
      */
     static class SimpleGraph{
         Vector<LinkedList<User>> adjacencyList = new Vector<>(); //i-sm element is the user with i as id

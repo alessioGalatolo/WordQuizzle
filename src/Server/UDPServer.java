@@ -79,8 +79,8 @@ class UDPServer extends Thread {
                             challengedAddress = request.getSocketAddress();
                             challengerAddress = pendingChallenges.get(challengedAddress);
                             if (challengerAddress == null) {
-                                System.err.println("No matches found for address " + challengedAddress);
-                                continue; //TODO: handle error
+                                sendErrorMessage(socket, Consts.RESPONSE_CHALLENGE_TIMEOUT, challengedAddress);
+                                continue;
                             }
                             pendingChallenges.remove(challengedAddress);
 
@@ -107,8 +107,8 @@ class UDPServer extends Thread {
                             challengedAddress = request.getSocketAddress();
                             challengerAddress = pendingChallenges.get(challengedAddress);
                             if (challengerAddress == null) {
-                                System.err.println("No matches found for address " + challengedAddress);
-                                continue; //TODO: handle error
+                                sendErrorMessage(socket, Consts.RESPONSE_CHALLENGE_TIMEOUT, challengedAddress);
+                                continue;
                             }
                             pendingChallenges.remove(challengedAddress);
 

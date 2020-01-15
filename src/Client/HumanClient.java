@@ -234,6 +234,11 @@ public class HumanClient {
         ByteBuffer byteBuffer = ByteBuffer.wrap(requestString.getBytes(StandardCharsets.UTF_8));
         while (byteBuffer.hasRemaining())
             client.write(byteBuffer);
+
+        byteBuffer.rewind();
+        String message = new String(byteBuffer.array(), 0, byteBuffer.remaining(), StandardCharsets.UTF_8);
+        System.out.println(Thread.currentThread().getName() + " wrote " + message);
+
     }
 
     static String readResponse(SocketChannel client) throws IOException {
@@ -247,6 +252,8 @@ public class HumanClient {
         //read response
         client.read(byteBuffer);
         byteBuffer.flip();
-        return new String(byteBuffer.array(), 0, byteBuffer.remaining(), StandardCharsets.UTF_8);
+        String message = new String(byteBuffer.array(), 0, byteBuffer.remaining(), StandardCharsets.UTF_8);
+        System.out.println(Thread.currentThread().getName() + " read " + message);
+        return message;
     }
 }
