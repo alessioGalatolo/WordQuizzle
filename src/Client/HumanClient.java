@@ -7,9 +7,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.*;
-import java.nio.ByteBuffer;
-import java.nio.channels.SocketChannel;
-import java.nio.charset.StandardCharsets;
 import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
@@ -20,6 +17,13 @@ public class HumanClient {
 
     public static void main(String[] args) {
         try {
+
+            boolean test = false;
+            try {
+                test = !args[0].isEmpty();
+            }catch (IndexOutOfBoundsException ignored){}
+
+
             Registry r = LocateRegistry.getRegistry(Consts.RMI_PORT);
             WQRegisterInterface serverObject = (WQRegisterInterface) r.lookup(Consts.WQ_STUB_NAME); //get remote object
 
@@ -34,8 +38,7 @@ public class HumanClient {
             System.out.println(Command.usage());
 
             try(BufferedReader input = new BufferedReader(new InputStreamReader(System.in));
-                SocketChannel client = SocketChannel.open(address);
-                UDPClient udpClient = new UDPClient(incomingChallenge, userBusy, (String otherUser) -> {
+                UDPClient udpClient = new UDPClient(incomingChallenge, userBusy, test, (String otherUser) -> {
                     //function to be used when a new challenge message arrives
                     //returns whether or not the challenge has been accepted
                     try {
@@ -45,20 +48,19 @@ public class HumanClient {
                     }catch (IOException e){
                         e.printStackTrace();
                     }
-                    return false;})
-            ){
+                    return false;});
+                ClientSocket clientSocket = new ClientSocket(address, udpClient, serverObject, test)){
 
                 boolean quit = false;
                 while (!quit) {
                     try {
                         if (incomingChallenge.get()) {
                             incomingChallenge.set(false);
-                            WordIterator wordIterator = new WordIterator(client, udpClient.getLatestMatchId(), currentLoggedUser);
-                            startChallenge(wordIterator, userBusy, input);
+                            startChallenge(clientSocket.getWordIterator(currentLoggedUser), userBusy, input);
                         }
 
-                        //TODO: avoid active wait
-                        if (input.ready()) {
+
+                        if(input.ready()) {
                             String message = input.readLine();
                             String[] messageFragments = message.split(" ");
 
@@ -69,43 +71,43 @@ public class HumanClient {
 
 
                             switch (messageFragments[0]) {
-                                case "register":
+                                case Consts.REQUEST_REGISTER:
                                     command = Command.REGISTER;
                                     user1 = messageFragments[1];
                                     pass = messageFragments[2];
                                     break;
-                                case "login":
+                                case Consts.REQUEST_LOGIN:
                                     command = Command.LOGIN;
                                     user1 = messageFragments[1];
                                     pass = messageFragments[2];
                                     break;
-                                case "logout":
+                                case Consts.REQUEST_LOGOUT:
                                     command = Command.LOGOUT;
                                     user1 = messageFragments[1];
                                     break;
-                                case "addFriend":
+                                case Consts.REQUEST_ADD_FRIEND:
                                     command = Command.ADD_FRIEND;
                                     user1 = messageFragments[1];
                                     user2 = messageFragments[2];
                                     break;
-                                case "challenge":
+                                case Consts.REQUEST_CHALLENGE:
                                     command = Command.CHALLENGE;
                                     user1 = messageFragments[1];
                                     user2 = messageFragments[2];
                                     break;
-                                case "ranking":
+                                case Consts.REQUEST_RANKINGS:
                                     command = Command.RANKING;
                                     user1 = messageFragments[1];
                                     break;
-                                case "score":
+                                case Consts.REQUEST_SCORE:
                                     command = Command.SCORE;
                                     user1 = messageFragments[1];
                                     break;
-                                case "friends":
+                                case Consts.REQUEST_FRIEND_LIST:
                                     command = Command.FRIENDS;
                                     user1 = messageFragments[1];
                                     break;
-                                case "quit":
+                                case Consts.REQUEST_TERMINATION:
                                     if (currentLoggedUser != null)
                                         System.out.println("You must logout before quitting");
                                     else
@@ -116,18 +118,13 @@ public class HumanClient {
                                     System.out.println(Command.usage());
                             }
                             try {
-                                if(command != null) {
-                                    if(currentLoggedUser != null && !currentLoggedUser.equals(user1)){
+                                if (command != null) {
+                                    if (currentLoggedUser != null && !currentLoggedUser.equals(user1)) {
                                         System.err.println("You tried to use an operation as a different user than the one you are logged in\nPlease try again");
                                         continue;
                                     }
-                                    var outcome = handler(client, udpClient, serverObject, command, user1, user2, pass);
-                                    String response = "";
-
-                                    if (command != Command.CHALLENGE && command != Command.REGISTER) {
-                                        response = readResponse(client);
-                                        outcome = response.startsWith(Consts.RESPONSE_OK);
-                                    }
+                                    String response = clientSocket.handler(command, user1, user2, pass);
+                                    boolean outcome = response.startsWith(Consts.RESPONSE_OK);
 
                                     if (outcome)
                                         switch (command) {
@@ -138,11 +135,7 @@ public class HumanClient {
                                                 currentLoggedUser = null;
                                                 break;
                                             case CHALLENGE:
-                                                WordIterator wordIterator = new WordIterator(client, udpClient.getLatestMatchId(), user1);
-                                                startChallenge(wordIterator, userBusy, input);
-                                            case REGISTER:
-                                                System.out.println(Consts.RESPONSE_OK);
-                                                break;
+                                                startChallenge(clientSocket.getWordIterator(user1), userBusy, input);
                                         }
 
                                     System.out.println(response);
@@ -154,6 +147,7 @@ public class HumanClient {
                                 System.out.println("The given username already exists");
                             }
                         }
+
                     } catch (IndexOutOfBoundsException e) {
                         System.err.println("Wrong syntax");
                         System.err.println(Command.usage());
@@ -168,12 +162,19 @@ public class HumanClient {
 
     }
 
-    private static void startChallenge(WordIterator wordIterator, AtomicBoolean userBusy, BufferedReader input) throws IOException {
+    private static void startChallenge(ClientSocket.WordIterator wordIterator, AtomicBoolean userBusy, BufferedReader input) throws IOException {
         String lastTranslation = null;
 
+        System.out.println("The challenge has started!");
+
         while (wordIterator.hasNext()){
-            WordIterator.Match match = wordIterator.next(lastTranslation);
+            Match match = wordIterator.next(lastTranslation);
             if(match != null) {
+                if(match.getTimeRemaining() != 0)
+                   System.out.println("Time remaining for the challenge: " + match.getTimeRemaining() + " s");
+                if(match.getErrorOccurred()){
+                    System.out.println("Error: " + wordIterator.getErrors());
+                }
                 if (!match.getLastWord().isBlank()) {
                     String outcome = match.isLastWordCorrect() ? "correct" : "incorrect";
                     System.out.println("Last translation was " + outcome);
@@ -186,76 +187,8 @@ public class HumanClient {
             }
         }
 
+        System.out.println("Waiting other user for recap");
         System.out.println(wordIterator.getRecap());
         userBusy.set(false);
-    }
-
-    /**
-     * Gets a command type and sends the corresponding request to the server
-     * @param client A blocking socketChannel to use to send TCP requests
-     * @param udpClient udpClient used to send UDP requests
-     * @param serverObject The remote object used for registration
-     * @param command The command to be executed
-     * @param user1 The user who made the request
-     * @param user2 A second user, if relevant
-     * @param pass Password of user1, if relevant
-     * @return The outcome of the operation
-     */
-    static boolean handler(SocketChannel client, UDPClient udpClient, WQRegisterInterface serverObject, Command command, String user1, String user2, String pass) throws IOException, WQRegisterInterface.InvalidPasswordException, WQRegisterInterface.UserAlreadyRegisteredException {
-        switch (command) {
-            case REGISTER:
-                    serverObject.registerUser(user1, pass);
-                break;
-            case LOGIN:
-                writeRequest(client, Consts.getRequestLogin(user1, pass, udpClient.getUDPPort()));
-                break;
-            case LOGOUT:
-                writeRequest(client, Consts.getRequestLogout(user1));
-                break;
-            case ADD_FRIEND:
-                writeRequest(client, Consts.getRequestAddFriend(user1, user2));
-                break;
-            case CHALLENGE:
-                if (!udpClient.requestChallenge(user1, user2))
-                    return false;
-                break;
-            case RANKING:
-                writeRequest(client, Consts.getRequestRankings(user1));
-                break;
-            case SCORE:
-                writeRequest(client, Consts.getRequestScore(user1));
-                break;
-            case FRIENDS:
-                writeRequest(client, Consts.getRequestFriends(user1));
-                break;
-        }
-        return true;
-    }
-
-    private static void writeRequest(SocketChannel client, String requestString) throws IOException {
-        ByteBuffer byteBuffer = ByteBuffer.wrap(requestString.getBytes(StandardCharsets.UTF_8));
-        while (byteBuffer.hasRemaining())
-            client.write(byteBuffer);
-
-        byteBuffer.rewind();
-        String message = new String(byteBuffer.array(), 0, byteBuffer.remaining(), StandardCharsets.UTF_8);
-        System.out.println(Thread.currentThread().getName() + " wrote " + message);
-
-    }
-
-    static String readResponse(SocketChannel client) throws IOException {
-        ByteBuffer intBuffer = ByteBuffer.allocate(Consts.INT_SIZE);
-        client.read(intBuffer);
-        intBuffer.flip();
-
-        ByteBuffer byteBuffer = ByteBuffer.allocate(intBuffer.getInt());
-        byteBuffer.clear();
-
-        //read response
-        client.read(byteBuffer);
-        byteBuffer.flip();
-        String message = new String(byteBuffer.array(), 0, byteBuffer.remaining(), StandardCharsets.UTF_8);
-        System.out.println(Thread.currentThread().getName() + " read " + message);
-        return message;
     }
 }

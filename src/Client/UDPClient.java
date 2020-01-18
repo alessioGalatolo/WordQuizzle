@@ -38,9 +38,12 @@ class UDPClient implements AutoCloseable{
 
     private int latestMatchId = 0; //collects latest match id
 
+    private boolean test = false; //if true prints all incoming and outgoing messages
+
     /**
      * Creates the udp socket and starts the thread who reads all the incoming messages
      * @param startChallenge A boolean to be set to true when the user has to start a challenge (TCP)
+     * @param userBusy A boolean to be set true when the user is already doing a challenge
      * @param challengeRequestFun Function to be called when a new challenge arrives
      */
     UDPClient(AtomicBoolean startChallenge, AtomicBoolean userBusy, Predicate<String> challengeRequestFun) throws SocketException {
@@ -58,7 +61,9 @@ class UDPClient implements AutoCloseable{
                     socket.receive(datagramPacket);
                     String message = new String(datagramPacket.getData(), 0, datagramPacket.getLength(), StandardCharsets.UTF_8);
                     String[] messageFragments = message.split(" ");
-                    System.out.println(Thread.currentThread().getName() + " udp received " + message);
+                    if(test)
+                        System.out.println(Thread.currentThread().getName() + " udp received " + message);
+
 
                     //if message contains a challenge request
                     if(messageFragments[0].equals(Consts.REQUEST_CHALLENGE)){
@@ -102,7 +107,11 @@ class UDPClient implements AutoCloseable{
     }
 
 
-    //TODO: user is allowed to request a challenge only if no incoming challenges
+    UDPClient(AtomicBoolean startChallenge, AtomicBoolean userBusy, boolean test, Predicate<String> challengeRequestFun) throws SocketException{
+        this(startChallenge, userBusy, challengeRequestFun);
+        this.test = test;
+    }
+
     /**
      * Forwards the challenge request to the server. May suspend the thread
      * during wait for answer (even for long time)
@@ -113,9 +122,10 @@ class UDPClient implements AutoCloseable{
     Boolean requestChallenge(String thisUser, String otherUser){
         try {
             byte[] challengeRequest = Consts.getRequestChallenge(thisUser, otherUser).getBytes(StandardCharsets.UTF_8);
-            System.out.println(Thread.currentThread().getName() + " udp sent " + new String(challengeRequest));
             DatagramPacket datagramPacket = new DatagramPacket(challengeRequest, challengeRequest.length, InetAddress.getByName(Consts.SERVER_ADDRESS), Consts.SERVER_UDP_PORT);
             socket.send(datagramPacket);
+            if(test)
+                System.out.println(Thread.currentThread().getName() + " udp sent " + new String(challengeRequest));
             messagesLock.lock();
             int currentLength = receivedMessages.size();
             while (currentLength == receivedMessages.size())
