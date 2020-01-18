@@ -5,6 +5,9 @@ import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static Commons.Constants.*;
+import static Server.Consts.*;
+
 /**
  * Class that handles the UDP socket, it keeps waiting for
  * incoming messages and splits them depending on the request
@@ -22,11 +25,11 @@ class UDPServer extends Thread {
 
     @Override
     public void run() {
-        try (DatagramSocket socket = new DatagramSocket(Consts.SERVER_UDP_PORT)){
+        try (DatagramSocket socket = new DatagramSocket(SERVER_UDP_PORT)){
 
-            socket.setSoTimeout(Consts.UDP_SERVER_TIMEOUT);
+            socket.setSoTimeout(UDP_SERVER_TIMEOUT);
 
-            byte[] buffer = new byte[Consts.MAX_MESSAGE_LENGTH];
+            byte[] buffer = new byte[MAX_MESSAGE_LENGTH];
             DatagramPacket request = new DatagramPacket(buffer, buffer.length);
 
             while (!interrupted()) {
@@ -42,7 +45,7 @@ class UDPServer extends Thread {
                     SocketAddress challengerAddress;
 
                     switch (messageFragments[0]) {
-                        case Consts.REQUEST_CHALLENGE:
+                        case REQUEST_CHALLENGE:
                             String challenger = messageFragments[1];
                             String challenged = messageFragments[2];
 
@@ -58,13 +61,13 @@ class UDPServer extends Thread {
                                 pendingChallenges.put(challengedAddress, challengerAddress);
 
                             } catch (UserDB.UserNotFoundException e) {
-                                errorMessage = Consts.RESPONSE_USER_NOT_FOUND;
+                                errorMessage = RESPONSE_USER_NOT_FOUND;
                             } catch (UserDB.NotFriendsException e) {
-                                errorMessage = Consts.RESPONSE_NOT_FRIENDS;
+                                errorMessage = RESPONSE_NOT_FRIENDS;
                             } catch (UserDB.NotLoggedException e) {
-                                errorMessage = Consts.RESPONSE_NOT_LOGGED;
+                                errorMessage = RESPONSE_NOT_LOGGED;
                             } catch (UserDB.SameUserException e) {
-                                errorMessage = Consts.RESPONSE_SAME_USER;
+                                errorMessage = RESPONSE_SAME_USER;
                             }
 
                             //there was an error
@@ -73,12 +76,12 @@ class UDPServer extends Thread {
                             }
                             break;
 
-                        case Consts.CHALLENGE_OK:
+                        case CHALLENGE_OK:
                             //retrieve user addresses involved in the challenge
                             challengedAddress = request.getSocketAddress();
                             challengerAddress = pendingChallenges.get(challengedAddress);
                             if (challengerAddress == null) {
-                                sendErrorMessage(socket, Consts.RESPONSE_CHALLENGE_TIMEOUT, challengedAddress);
+                                sendErrorMessage(socket, RESPONSE_CHALLENGE_TIMEOUT, challengedAddress);
                                 continue;
                             }
                             pendingChallenges.remove(challengedAddress);
@@ -93,19 +96,19 @@ class UDPServer extends Thread {
                                 socket.send(challengeConfirmationPacket);
 
                             } catch (UserDB.ChallengeRequestTimeoutException e) {
-                                sendErrorMessage(socket, Consts.RESPONSE_CHALLENGE_TIMEOUT, challengerAddress);
-                                sendErrorMessage(socket, Consts.RESPONSE_CHALLENGE_TIMEOUT, challengerAddress);
+                                sendErrorMessage(socket, RESPONSE_CHALLENGE_TIMEOUT, challengerAddress);
+                                sendErrorMessage(socket, RESPONSE_CHALLENGE_TIMEOUT, challengerAddress);
                             } catch (UserDB.UserNotFoundException e) {
-                                sendErrorMessage(socket, Consts.RESPONSE_CHALLENGE_REFUSED, challengerAddress);
-                                sendErrorMessage(socket, Consts.RESPONSE_CHALLENGE_REFUSED, challengerAddress);
+                                sendErrorMessage(socket, RESPONSE_CHALLENGE_REFUSED, challengerAddress);
+                                sendErrorMessage(socket, RESPONSE_CHALLENGE_REFUSED, challengerAddress);
                             }
                             break;
 
-                        case Consts.CHALLENGE_REFUSED:
+                        case CHALLENGE_REFUSED:
                             challengedAddress = request.getSocketAddress();
                             challengerAddress = pendingChallenges.get(challengedAddress);
                             if (challengerAddress == null) {
-                                sendErrorMessage(socket, Consts.RESPONSE_CHALLENGE_TIMEOUT, challengedAddress);
+                                sendErrorMessage(socket, RESPONSE_CHALLENGE_TIMEOUT, challengedAddress);
                                 continue;
                             }
                             pendingChallenges.remove(challengedAddress);
@@ -118,7 +121,7 @@ class UDPServer extends Thread {
 
                         default:
                             //wrong request
-                            sendErrorMessage(socket, Consts.RESPONSE_UNKNOWN_REQUEST, request.getAddress(), request.getPort());
+                            sendErrorMessage(socket, RESPONSE_UNKNOWN_REQUEST, request.getAddress(), request.getPort());
                             break;
                     }
                 } catch (SocketTimeoutException ignored) {

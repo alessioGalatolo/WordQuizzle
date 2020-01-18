@@ -5,6 +5,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * A simple task that waits the two users involved in a challenge to finish before writing to
+ * a byte buffer a recap of the challenge
+ */
 public class RecapTask implements Runnable {
     private int matchId;
     private ByteBuffer output;

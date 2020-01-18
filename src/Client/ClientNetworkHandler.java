@@ -1,7 +1,6 @@
 package Client;
 
 import Commons.WQRegisterInterface;
-import Server.Consts;
 
 import java.io.IOException;
 import java.net.SocketAddress;
@@ -9,25 +8,34 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 
-class ClientSocket implements AutoCloseable{
+import static Client.Consts.CHALLENGE_TIMEOUT;
+import static Commons.Constants.*;
+
+class ClientNetworkHandler implements AutoCloseable{
     private boolean test = false;
     private SocketChannel client;
     private UDPClient udpClient;
     private WQRegisterInterface serverObject;
 
+
     /**
-     *
      * @param address The socket address of the server
      * @param udpClient udpClient used to send UDP requests
      * @param serverObject The remote object used for registration
      */
-    ClientSocket(SocketAddress address, UDPClient udpClient, WQRegisterInterface serverObject) throws IOException {
+    ClientNetworkHandler(SocketAddress address, UDPClient udpClient, WQRegisterInterface serverObject) throws IOException {
         this.client = SocketChannel.open(address);
         this.udpClient = udpClient;
         this.serverObject = serverObject;
     }
 
-    ClientSocket(SocketAddress address, UDPClient udpClient, WQRegisterInterface serverObject, boolean test) throws IOException {
+    /**
+     * @param address The socket address of the server
+     * @param udpClient udpClient used to send UDP requests
+     * @param serverObject The remote object used for registration
+     * @param test true will make the class write to console every interaction it has with the server
+     */
+    ClientNetworkHandler(SocketAddress address, UDPClient udpClient, WQRegisterInterface serverObject, boolean test) throws IOException {
         this(address, udpClient, serverObject);
         this.test = test;
     }
@@ -44,7 +52,7 @@ class ClientSocket implements AutoCloseable{
         switch (command) {
             case REGISTER:
                 serverObject.registerUser(user1, pass);
-                return Consts.RESPONSE_OK;
+                return RESPONSE_OK;
             case LOGIN:
                 writeRequest(client, Consts.getRequestLogin(user1, pass, udpClient.getUDPPort()));
                 break;
@@ -56,9 +64,9 @@ class ClientSocket implements AutoCloseable{
                 break;
             case CHALLENGE:
                 if (udpClient.requestChallenge(user1, user2))
-                    return Consts.CHALLENGE_OK;
+                    return CHALLENGE_OK;
                 else
-                    return Consts.CHALLENGE_REFUSED;
+                    return CHALLENGE_REFUSED;
             case RANKING:
                 writeRequest(client, Consts.getRequestRankings(user1));
                 break;
@@ -90,8 +98,12 @@ class ClientSocket implements AutoCloseable{
     }
 
 
+    /**
+     * Reads a response from the server
+     * @return The string read
+     */
     private String readResponse() throws IOException {
-        ByteBuffer intBuffer = ByteBuffer.allocate(Consts.INT_SIZE);
+        ByteBuffer intBuffer = ByteBuffer.allocate(INT_SIZE);
         client.read(intBuffer);
         intBuffer.flip();
 
@@ -107,24 +119,29 @@ class ClientSocket implements AutoCloseable{
         return message;
     }
 
+    WordIterator getWordIterator(String user) throws IOException {
+        return new WordIterator(udpClient.getLatestMatchId(), user);
+    }
+
     @Override
     public void close() throws IOException {
         client.close();
     }
 
-    WordIterator getWordIterator(String user) throws IOException {
-        return new WordIterator(udpClient.getLatestMatchId(), user);
-    }
 
+    /**
+     * A class that emulates the behaviour of an iterator of words in a challenge
+     * Given a user translation it will return the next word to be translated
+     */
     class WordIterator {
         private int wordIndex = 0;
-        private boolean timeout = false;
+        private boolean timeout = false; //challenge timeout
         private int matchId;
         private String user;
-        private String errors = "";
+        private String errors = ""; //stores all unrecognised string received from server
 
         WordIterator(int matchId, String user) throws IOException {
-            byte[] byteMessage = (Consts.REQUEST_READY_FOR_CHALLENGE + " " + matchId + " " + user).getBytes(StandardCharsets.UTF_8);
+            byte[] byteMessage = (REQUEST_READY_FOR_CHALLENGE + " " + matchId + " " + user).getBytes(StandardCharsets.UTF_8);
             ByteBuffer messageBuffer = ByteBuffer.wrap(byteMessage);
 
             //write ready for challenge
@@ -135,10 +152,17 @@ class ClientSocket implements AutoCloseable{
         }
 
 
+        /**
+         * @return true if there are any other words to translate
+         */
         boolean hasNext() {
-            return !timeout && wordIndex < Consts.CHALLENGE_WORDS_TO_MATCH + 1;
+            return !timeout && wordIndex < CHALLENGE_WORDS_TO_MATCH + 1;
         }
 
+        /**
+         * @param translatedWord The last word the user translated, may be null if not available
+         * @return A match object with all the info needed
+         */
         Match next(String translatedWord) throws IOException {
             wordIndex++;
             if (wordIndex > 1) {
@@ -151,7 +175,7 @@ class ClientSocket implements AutoCloseable{
                     client.write(messageBuffer);
             }
 
-            if(wordIndex < Consts.CHALLENGE_WORDS_TO_MATCH + 2) {
+            if(wordIndex < CHALLENGE_WORDS_TO_MATCH + 2) {
                 //get new word
                 String wholeMessage = readResponse();
                 String[] messages = wholeMessage.split("\n");
@@ -161,26 +185,26 @@ class ClientSocket implements AutoCloseable{
                 String lastTranslatedWord = ""; //last word correct translation
                 String nextWord = ""; //next word to be translated
                 boolean errorOccurred = false;
-                long timeRemaining = 0;
+                long timeRemaining = 0; //time remaining for the challenge
 
                 for (String message : messages) {
-                    if (message.equals(Consts.RESPONSE_CHALLENGE_TIMEOUT)) {
-                        errors += message + "\n";
+                    if (message.equals(RESPONSE_CHALLENGE_TIMEOUT)) {
+                        errors += CHALLENGE_TIMEOUT + "\n";
                         timeout = true;
                         errorOccurred = true;
                     }
 
                     String[] messageFragments = message.split(" ");
                     switch (messageFragments[0]) {
-                        case Consts.RESPONSE_NEXT_WORD:
+                        case RESPONSE_NEXT_WORD:
                             nextWord = messageFragments[2];
                             break;
-                        case Consts.CHALLENGE_OK:
+                        case CHALLENGE_OK:
                             lastWordCorrect = true;
                             lastWord = messageFragments[2];
                             lastTranslatedWord = messageFragments[3];
                             break;
-                        case Consts.CHALLENGE_WORD_MISMATCH:
+                        case CHALLENGE_WORD_MISMATCH:
                             lastWordCorrect = false;
                             lastWord = messageFragments[2];
                             StringBuilder stringBuilder = new StringBuilder();
@@ -189,9 +213,9 @@ class ClientSocket implements AutoCloseable{
                             }
                             lastTranslatedWord = stringBuilder.toString();
                             break;
-                        case Consts.RESPONSE_CHALLENGE_TIME:
+                        case RESPONSE_CHALLENGE_TIME:
                             timeRemaining = Long.parseLong(messageFragments[1]);
-                        case Consts.RESPONSE_WAITING_OTHER_USER:
+                        case RESPONSE_WAITING_OTHER_USER:
                             //waiting other user for final recap
                             break;
                         default:
@@ -212,6 +236,9 @@ class ClientSocket implements AutoCloseable{
             return error;
         }
 
+        /**
+         * @return A string containing a small recap of the past challenge
+         */
         String getRecap() throws IOException {
             if(hasNext())
                 return null;

@@ -14,13 +14,15 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static Commons.Constants.*;
+
 final class Handler implements Runnable {
     private final SocketChannel socket;
     private final SelectionKey selectionKey;
     private AtomicBoolean processed = new AtomicBoolean(false);
-    private ByteBuffer input = ByteBuffer.allocate(Consts.MAX_MESSAGE_LENGTH);
-    private ByteBuffer preOutput = ByteBuffer.allocate(Consts.INT_SIZE);
-    private ByteBuffer output = ByteBuffer.allocate(Consts.MAX_MESSAGE_LENGTH);
+    private ByteBuffer input = ByteBuffer.allocate(MAX_MESSAGE_LENGTH);
+    private ByteBuffer preOutput = ByteBuffer.allocate(INT_SIZE);
+    private ByteBuffer output = ByteBuffer.allocate(MAX_MESSAGE_LENGTH);
     private static ThreadPoolExecutor threadPool = (ThreadPoolExecutor) Executors.newFixedThreadPool(Consts.SERVER_THREADS);
     private static final int IO_OPERATION = 0, PROCESSING = 2;
     private int state = IO_OPERATION;
@@ -104,7 +106,7 @@ final class Handler implements Runnable {
             int clientPort = ((InetSocketAddress) ((SocketChannel) selectionKey.channel()).getRemoteAddress()).getPort();
 
             switch (messageFragments[0]) {
-                case Consts.REQUEST_LOGIN:
+                case REQUEST_LOGIN:
                     if (messageFragments.length > 3)
                         UserDB.instance.logUser(messageFragments[1], messageFragments[2],
                                 clientAddress,
@@ -115,33 +117,33 @@ final class Handler implements Runnable {
                                 clientAddress,
                                 clientPort);
 
-                    response = Consts.RESPONSE_OK;
+                    response = RESPONSE_OK;
                     break;
 
-                case Consts.REQUEST_LOGOUT:
+                case REQUEST_LOGOUT:
                     UserDB.instance.logoutUser(messageFragments[1], clientAddress, clientPort);
-                    response = Consts.RESPONSE_OK;
+                    response = RESPONSE_OK;
                     break;
 
-                case Consts.REQUEST_ADD_FRIEND:
+                case REQUEST_ADD_FRIEND:
                     UserDB.instance.addFriendship(messageFragments[1], messageFragments[2], clientAddress, clientPort);
-                    response = Consts.RESPONSE_OK;
+                    response = RESPONSE_OK;
 
                     break;
 
-                case Consts.REQUEST_FRIEND_LIST:
+                case REQUEST_FRIEND_LIST:
                     response = UserDB.instance.getFriends(messageFragments[1], clientAddress, clientPort);
                     break;
 
-                case Consts.REQUEST_CHALLENGE:
+                case REQUEST_CHALLENGE:
                     response = Consts.RESPONSE_ILLEGAL_REQUEST; //no challenge request allowed via TCP
                     break;
 
-                case Consts.REQUEST_SCORE:
+                case REQUEST_SCORE:
                     response = String.valueOf(UserDB.instance.getScore(messageFragments[1], clientAddress, clientPort));
                     break;
 
-                case Consts.REQUEST_RANKINGS:
+                case REQUEST_RANKINGS:
                     response = UserDB.instance.getRanking(messageFragments[1], clientAddress, clientPort);
                     break;
 
@@ -149,7 +151,7 @@ final class Handler implements Runnable {
                  * User already received first word so he sends the translation of the last word
                  * and wants the next word
                  */
-                case Consts.REQUEST_NEXT_WORD:
+                case REQUEST_NEXT_WORD:
                     //Check correctness of translated word, then send new word
                     matchId = Integer.parseInt(messageFragments[1]);
                     username = messageFragments[2];
@@ -160,7 +162,7 @@ final class Handler implements Runnable {
 
                     response += "\n";
 
-                case Consts.REQUEST_READY_FOR_CHALLENGE:
+                case REQUEST_READY_FOR_CHALLENGE:
                     //client is ready for a match
                     matchId = Integer.parseInt(messageFragments[1]);
                     username = messageFragments[2];
@@ -169,10 +171,10 @@ final class Handler implements Runnable {
 
                     response += "\n" + Consts.getResponseTimeRemaining(ChallengeHandler.instance.getTime(matchId));
                     break;
-                case Consts.REQUEST_CHALLENGE_RECAP:
+                case REQUEST_CHALLENGE_RECAP:
                     matchId = Integer.parseInt(messageFragments[1]);
                     username = messageFragments[2];
-                    output = ByteBuffer.allocate(Consts.MAX_MESSAGE_LENGTH);
+                    output = ByteBuffer.allocate(MAX_MESSAGE_LENGTH);
                     threadPool.execute(new RecapTask(matchId, output, preOutput, processed, threadPool));
                     return;
 
@@ -196,16 +198,14 @@ final class Handler implements Runnable {
             response = Consts.RESPONSE_NOT_LOGGED;
         } catch (UserDB.SameUserException e) {
             response = Consts.RESPONSE_SAME_USER;
-        } catch (ChallengeHandler.Challenge.GameTimeoutException e) {
-            response = Consts.RESPONSE_CHALLENGE_TIMEOUT + "\n";
-            response += ChallengeHandler.instance.getRecap(matchId);
         } catch (ChallengeHandler.Challenge.UnknownUsernameException e) {
             response = Consts.RESPONSE_UNKNOWN_USERNAME;
+        } catch (ChallengeHandler.Challenge.GameTimeoutException e) {
+                response = RESPONSE_CHALLENGE_TIMEOUT + "\n";
+                response += ChallengeHandler.instance.getRecap(matchId);
         } catch (ChallengeHandler.Challenge.EndOfMatchException e) {
-            response += Consts.RESPONSE_WAITING_OTHER_USER;
-        }
-
-        catch (IndexOutOfBoundsException e){
+            response += RESPONSE_WAITING_OTHER_USER;
+        } catch (IndexOutOfBoundsException e){
             //client sent a message without proper format
             response = Consts.RESPONSE_WRONG_FORMAT;
         } catch (IOException e) {

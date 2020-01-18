@@ -1,17 +1,16 @@
 package Client;
 
 import Commons.WQRegisterInterface;
-import Server.Consts;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.nio.channels.SocketChannel;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static Client.AutoClientTesting.startChallenge;
+import static Commons.Constants.*;
 
 public class AutoClient implements Runnable{
 
@@ -23,9 +22,9 @@ public class AutoClient implements Runnable{
         Random random = new Random(System.currentTimeMillis());
 
         //socket init
-        SocketAddress address = new InetSocketAddress(Consts.TCP_PORT);
+        SocketAddress address = new InetSocketAddress(TCP_PORT);
 
-        String currentLoggedUser = Consts.BASE_USERNAME;
+        String currentLoggedUser = BASE_USERNAME;
 
         try (
                 UDPClient udpClient = new UDPClient(incomingChallenge, userBusy, (String otherUser) -> {
@@ -33,10 +32,10 @@ public class AutoClient implements Runnable{
                     //returns whether or not the challenge has been accepted
                     return true;
                 });
-                ClientSocket clientSocket = new ClientSocket(address, udpClient, null)
+                ClientNetworkHandler clientSocket = new ClientNetworkHandler(address, udpClient, null)
         ) {
-            Registry r = LocateRegistry.getRegistry(Consts.RMI_PORT);
-            WQRegisterInterface serverObject = (WQRegisterInterface) r.lookup(Consts.WQ_STUB_NAME); //get remote object
+            Registry r = LocateRegistry.getRegistry(RMI_PORT);
+            WQRegisterInterface serverObject = (WQRegisterInterface) r.lookup(WQ_STUB_NAME); //get remote object
 
             String pass = "password";
 

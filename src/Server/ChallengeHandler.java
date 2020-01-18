@@ -17,6 +17,7 @@ import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static Commons.Constants.*;
 import static java.lang.Math.abs;
 
 /**
@@ -26,6 +27,8 @@ import static java.lang.Math.abs;
  * Uses singleton pattern, object of class is created when it is loaded to the memory by JVM
  *
  * Thread safety is assured by the use of a concurrent hash map
+ *
+ * Contains an inner class for handling challenge info
  */
 class ChallengeHandler {
 
@@ -44,7 +47,6 @@ class ChallengeHandler {
 
     /**
      * Initializes the challenges dictionary from file
-     * Follows singleton pattern
      * @param filename File containing the dictionary. Must have the size of the dictionary as a string in the first line
      */
     private ChallengeHandler(String filename){
@@ -67,7 +69,6 @@ class ChallengeHandler {
             //create the dictionary
             dictionary = new String[dictionaryLength];
 
-            //TODO: improve code repetition
             //store in the dictionary the overflowing words caught with the first read
             for(int i = 1; i < wordsFragments.length; i++){
                 dictionary[dictionaryIndex] = wordsFragments[i];
@@ -102,9 +103,7 @@ class ChallengeHandler {
 
                 if(words.charAt(words.length() - 1) != '\n')
                     dictionaryIndex--;
-
             }
-
         } catch (IOException e) {
             e.printStackTrace();
         } catch (ArrayIndexOutOfBoundsException e){
@@ -116,8 +115,6 @@ class ChallengeHandler {
      * @param matchId The current match ID
      * @param user The user request a new word
      * @return The word to be translated
-     * @throws Challenge.EndOfMatchException If the match is over so there are no next words
-     * @throws Challenge.UnknownUsernameException When the given user is not in the challenge
      */
     String getNextWord(int matchId, String user) throws Challenge.EndOfMatchException, Challenge.UnknownUsernameException {
         return challenges.get(matchId).getNextWord(user);
@@ -147,12 +144,9 @@ class ChallengeHandler {
 
     /**
      * Checks the correctness of the translation and updates the user score
-     * @param matchId The match id
      * @param user The user who sent the translation
      * @param userTranslatedWord The word translated by the user
      * @return The translation of the word
-     * @throws Challenge.UnknownUsernameException When the given user is not in the challenge
-     * @throws Challenge.GameTimeoutException If the user time has expired
      */
     String checkTranslation(int matchId, String user, String userTranslatedWord) throws Challenge.UnknownUsernameException, Challenge.GameTimeoutException {
         Challenge challenge = challenges.get(matchId);
@@ -175,14 +169,16 @@ class ChallengeHandler {
         return correctTranslation;
     }
 
-    int getScore(int matchId, String user) throws Challenge.UnknownUsernameException {
-        return challenges.get(matchId).getScore(user);
-    }
-
+    /**
+     * @return true if the challenge with the given matchId has ended
+     */
     boolean challengeIsFinished(int matchId) {
         return challenges.get(matchId).isFinished();
     }
 
+    /**
+     * @return The time remaining for the challenge the matches the given matchId
+     */
     long getTime(int matchId) {
         return Consts.CHALLENGE_TIMEOUT - System.currentTimeMillis() + challenges.get(matchId).challengeTimestamp;
     }
@@ -207,8 +203,8 @@ class ChallengeHandler {
         private int user1Score = 0;
         private int user2Score = 0;
         private int finished = 0; //stores whether or not the challenge is over (0 -> not, 1 -> just one user, 2 -> both)
-        private String[] selectedWords = new String[Consts.CHALLENGE_WORDS_TO_MATCH]; //contains selected words to be translated
-        private String[][] translatedWords = new String[Consts.CHALLENGE_WORDS_TO_MATCH][Consts.MAX_TRANSLATIONS_PER_WORD];
+        private String[] selectedWords = new String[CHALLENGE_WORDS_TO_MATCH]; //contains selected words to be translated
+        private String[][] translatedWords = new String[CHALLENGE_WORDS_TO_MATCH][Consts.MAX_TRANSLATIONS_PER_WORD]; //contains all the correct translations for the words in selectedWords
         private static Random random = new Random(System.currentTimeMillis()); //random generator to get the challenge words
 
         /**
@@ -236,6 +232,9 @@ class ChallengeHandler {
             return finished > 1 || timeout();
         }
 
+        /**
+         * @return true if the time for the challenge has ended
+         */
         boolean timeout(){
             return System.currentTimeMillis() - challengeTimestamp >= Consts.CHALLENGE_TIMEOUT;
         }
@@ -251,7 +250,7 @@ class ChallengeHandler {
             if(challengeTimestamp == 0)
                 challengeTimestamp = System.currentTimeMillis();
             if(user.equals(user1)) {
-                if(user1CompletedWords < Consts.CHALLENGE_WORDS_TO_MATCH)
+                if(user1CompletedWords < CHALLENGE_WORDS_TO_MATCH)
                     return selectedWords[user1CompletedWords++];
                 else {
                     finished++;
@@ -259,7 +258,7 @@ class ChallengeHandler {
                     throw new EndOfMatchException();
                 }
             }else if(user.equals(user2)) {
-                if(user2CompletedWords < Consts.CHALLENGE_WORDS_TO_MATCH)
+                if(user2CompletedWords < CHALLENGE_WORDS_TO_MATCH)
                     return selectedWords[user2CompletedWords++];
                 else {
                     finished++;
@@ -271,13 +270,15 @@ class ChallengeHandler {
             throw new UnknownUsernameException("User " + user + " was not found in: " + user1 + " " + user2);
         }
 
+        /**
+         * If the challenge has ended it updated the score of the users in the db
+         */
         private void checkTermination() {
             if(isFinished()){
                 UserDB.instance.updateScore(user1, user1Score);
                 UserDB.instance.updateScore(user2, user2Score);
             }
         }
-
 
         /**
          * Updates the score of the given user of the given amount
@@ -310,30 +311,13 @@ class ChallengeHandler {
         }
 
         /**
-         * Retrieves the score of the given user
-         * @param user The user
-         * @return The score
-         * @throws UnknownUsernameException When the given user is not in the challenge
-         */
-        int getScore(String user) throws UnknownUsernameException {
-            if(user.equals(user1)) {
-                return user1Score;
-            }
-            else if(user.equals(user2)) {
-                return user2Score;
-            }
-            //no username matches found
-            throw new UnknownUsernameException("User " + user + " was not found in: " + user1 + user2);
-        }
-
-        /**
-         * Retrieves the correct translation of the given word
+         * Retrieves some correct translation of the given word
          * @param originalWord The original word to be translated
-         * @return The correct translation
+         * @return An array of correct translations
          */
         private String[] getTranslation(String originalWord) {
             try {
-                URL url = new URL(Consts.getTranslationURL(originalWord));
+                URL url = new URL(getTranslationURL(originalWord));
                 try(var inputStream = new BufferedReader(new InputStreamReader(url.openStream()))){
                     StringBuilder stringBuilder = new StringBuilder();
                     Gson gson = new Gson();
@@ -344,7 +328,6 @@ class ChallengeHandler {
                     }
                     JsonObject jsonObject = gson.fromJson(stringBuilder.toString(), JsonObject.class);
 
-                    //TODO: change score based on Levenshtein distance
                     String[] translations = new String[Consts.MAX_TRANSLATIONS_PER_WORD];
                     translations[0] = jsonObject.get("responseData").getAsJsonObject().get("translatedText").getAsString();
                     JsonArray jsonArray = jsonObject.getAsJsonArray("matches");
@@ -362,10 +345,14 @@ class ChallengeHandler {
                 e.printStackTrace();
             }
 
-            return new String[]{Consts.NOT_A_WORD};
+            return new String[]{NOT_A_WORD};
         }
 
-
+        /**
+         * Retrieves the correct translations for the last word that was sent to the given user
+         * @return An array with the correct translations
+         * @throws UnknownUsernameException When the given user is not in the challenge
+         */
         String[] getUserLastWordTranslation(String user) throws UnknownUsernameException {
             if(user.equals(user1)) {
                 return translatedWords[user1CompletedWords - 1];

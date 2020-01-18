@@ -1,7 +1,6 @@
 package Client;
 
 import Commons.WQRegisterInterface;
-import Server.Consts;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -12,6 +11,8 @@ import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static Commons.Constants.*;
 
 public class HumanClient {
 
@@ -24,8 +25,8 @@ public class HumanClient {
             }catch (IndexOutOfBoundsException ignored){}
 
 
-            Registry r = LocateRegistry.getRegistry(Consts.RMI_PORT);
-            WQRegisterInterface serverObject = (WQRegisterInterface) r.lookup(Consts.WQ_STUB_NAME); //get remote object
+            Registry r = LocateRegistry.getRegistry(RMI_PORT);
+            WQRegisterInterface serverObject = (WQRegisterInterface) r.lookup(WQ_STUB_NAME); //get remote object
 
             AtomicBoolean incomingChallenge = new AtomicBoolean(false);
             AtomicBoolean userBusy = new AtomicBoolean(false);
@@ -33,7 +34,7 @@ public class HumanClient {
             String currentLoggedUser = null;
 
             //socket init
-            SocketAddress address = new InetSocketAddress(Consts.TCP_PORT);
+            SocketAddress address = new InetSocketAddress(TCP_PORT);
 
             System.out.println(Command.usage());
 
@@ -49,7 +50,7 @@ public class HumanClient {
                         e.printStackTrace();
                     }
                     return false;});
-                ClientSocket clientSocket = new ClientSocket(address, udpClient, serverObject, test)){
+                ClientNetworkHandler clientSocket = new ClientNetworkHandler(address, udpClient, serverObject, test)){
 
                 boolean quit = false;
                 while (!quit) {
@@ -71,43 +72,43 @@ public class HumanClient {
 
 
                             switch (messageFragments[0]) {
-                                case Consts.REQUEST_REGISTER:
+                                case REQUEST_REGISTER:
                                     command = Command.REGISTER;
                                     user1 = messageFragments[1];
                                     pass = messageFragments[2];
                                     break;
-                                case Consts.REQUEST_LOGIN:
+                                case REQUEST_LOGIN:
                                     command = Command.LOGIN;
                                     user1 = messageFragments[1];
                                     pass = messageFragments[2];
                                     break;
-                                case Consts.REQUEST_LOGOUT:
+                                case REQUEST_LOGOUT:
                                     command = Command.LOGOUT;
                                     user1 = messageFragments[1];
                                     break;
-                                case Consts.REQUEST_ADD_FRIEND:
+                                case REQUEST_ADD_FRIEND:
                                     command = Command.ADD_FRIEND;
                                     user1 = messageFragments[1];
                                     user2 = messageFragments[2];
                                     break;
-                                case Consts.REQUEST_CHALLENGE:
+                                case REQUEST_CHALLENGE:
                                     command = Command.CHALLENGE;
                                     user1 = messageFragments[1];
                                     user2 = messageFragments[2];
                                     break;
-                                case Consts.REQUEST_RANKINGS:
+                                case REQUEST_RANKINGS:
                                     command = Command.RANKING;
                                     user1 = messageFragments[1];
                                     break;
-                                case Consts.REQUEST_SCORE:
+                                case REQUEST_SCORE:
                                     command = Command.SCORE;
                                     user1 = messageFragments[1];
                                     break;
-                                case Consts.REQUEST_FRIEND_LIST:
+                                case REQUEST_FRIEND_LIST:
                                     command = Command.FRIENDS;
                                     user1 = messageFragments[1];
                                     break;
-                                case Consts.REQUEST_TERMINATION:
+                                case REQUEST_TERMINATION:
                                     if (currentLoggedUser != null)
                                         System.out.println("You must logout before quitting");
                                     else
@@ -119,12 +120,17 @@ public class HumanClient {
                             }
                             try {
                                 if (command != null) {
+
                                     if (currentLoggedUser != null && !currentLoggedUser.equals(user1)) {
                                         System.err.println("You tried to use an operation as a different user than the one you are logged in\nPlease try again");
                                         continue;
                                     }
+
+                                    if(command == Command.CHALLENGE)
+                                        System.out.println("Sending request...");
+
                                     String response = clientSocket.handler(command, user1, user2, pass);
-                                    boolean outcome = response.startsWith(Consts.RESPONSE_OK);
+                                    boolean outcome = response.startsWith(RESPONSE_OK);
 
                                     if (outcome)
                                         switch (command) {
@@ -162,7 +168,7 @@ public class HumanClient {
 
     }
 
-    private static void startChallenge(ClientSocket.WordIterator wordIterator, AtomicBoolean userBusy, BufferedReader input) throws IOException {
+    private static void startChallenge(ClientNetworkHandler.WordIterator wordIterator, AtomicBoolean userBusy, BufferedReader input) throws IOException {
         String lastTranslation = null;
 
         System.out.println("The challenge has started!");
@@ -178,7 +184,7 @@ public class HumanClient {
                 if (!match.getLastWord().isBlank()) {
                     String outcome = match.isLastWordCorrect() ? "correct" : "incorrect";
                     System.out.println("Last translation was " + outcome);
-                    System.out.println("Your translation was " + match.getLastWord() + " and correct translation is " + match.getLastTranslatedWord());
+                    System.out.println("Your translation was " + match.getLastWord() + " and correct translation is: " + match.getLastTranslatedWord());
                 }
                 if (!match.getNextWord().isBlank()) {
                     System.out.println("Next word to be translated is: " + match.getNextWord());

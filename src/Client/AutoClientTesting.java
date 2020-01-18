@@ -1,7 +1,6 @@
 package Client;
 
 import Commons.WQRegisterInterface;
-import Server.Consts;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 
@@ -17,6 +16,8 @@ import java.rmi.registry.Registry;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static Commons.Constants.*;
+
 
 public class AutoClientTesting {
 
@@ -26,9 +27,9 @@ public class AutoClientTesting {
         Random random = new Random(System.currentTimeMillis());
 
         //socket init
-        SocketAddress address = new InetSocketAddress(Consts.TCP_PORT);
+        SocketAddress address = new InetSocketAddress(TCP_PORT);
 
-        String currentLoggedUser = Consts.BASE_USERNAME;
+        String currentLoggedUser = BASE_USERNAME;
         boolean test = false;
         try {
             currentLoggedUser = args[0]; //retrieves the username
@@ -43,9 +44,9 @@ public class AutoClientTesting {
             //returns whether or not the challenge has been accepted
             return random.nextBoolean();
         });
-        ClientSocket clientSocket = new ClientSocket(address, udpClient, null, test)){
-            Registry r = LocateRegistry.getRegistry(Consts.RMI_PORT);
-            WQRegisterInterface serverObject = (WQRegisterInterface) r.lookup(Consts.WQ_STUB_NAME); //get remote object
+        ClientNetworkHandler clientSocket = new ClientNetworkHandler(address, udpClient, null, test)){
+            Registry r = LocateRegistry.getRegistry(RMI_PORT);
+            WQRegisterInterface serverObject = (WQRegisterInterface) r.lookup(WQ_STUB_NAME); //get remote object
 
             String pass = "password";
 
@@ -55,7 +56,7 @@ public class AutoClientTesting {
 
             clientSocket.handler(Command.LOGIN, currentLoggedUser, "", pass);
 
-            for(int i = 0; i < Consts.CLIENT_TESTS; i++){
+            for(int i = 0; i < CLIENT_TESTS; i++){
                 if (incomingChallenge.get()) {
                     incomingChallenge.set(false);
                     startChallenge(clientSocket.getWordIterator(currentLoggedUser), userBusy, random);
@@ -63,9 +64,9 @@ public class AutoClientTesting {
 
                 Command command = Command.getRandomCommand();
 
-                String response = clientSocket.handler(command, currentLoggedUser, Consts.getRandomUserName(currentLoggedUser), pass);
+                String response = clientSocket.handler(command, currentLoggedUser, getRandomUserName(currentLoggedUser), pass);
 
-                boolean outcome = response.startsWith(Consts.RESPONSE_OK);
+                boolean outcome = response.startsWith(RESPONSE_OK);
 
                 if (outcome && command == Command.CHALLENGE) {
                     startChallenge(clientSocket.getWordIterator(currentLoggedUser), userBusy, random);
@@ -80,14 +81,14 @@ public class AutoClientTesting {
         }
     }
 
-    static void startChallenge(ClientSocket.WordIterator wordIterator, AtomicBoolean userBusy, Random random) throws IOException {
+    static void startChallenge(ClientNetworkHandler.WordIterator wordIterator, AtomicBoolean userBusy, Random random) throws IOException {
         String lastTranslation = null;
 
         while (wordIterator.hasNext()){
             Match match = wordIterator.next(lastTranslation);
             if(match != null) {
                 if (!match.getNextWord().isBlank()) {
-                    lastTranslation = random.nextBoolean() ? Consts.NOT_A_WORD: getTranslation(match.getNextWord());
+                    lastTranslation = random.nextBoolean() ? NOT_A_WORD: getTranslation(match.getNextWord());
                 }
             }
         }
@@ -98,7 +99,7 @@ public class AutoClientTesting {
 
     private static String getTranslation(String nextWord) {
         try {
-            URL url = new URL(Consts.getTranslationURL(nextWord));
+            URL url = new URL(getTranslationURL(nextWord));
             try(var inputStream = new BufferedReader(new InputStreamReader(url.openStream()))){
 
                 StringBuilder stringBuilder = new StringBuilder();
@@ -121,7 +122,7 @@ public class AutoClientTesting {
         } catch (MalformedURLException e) {
             e.printStackTrace();
         }
-        return Consts.NOT_A_WORD;
+        return NOT_A_WORD;
     }
 
 }

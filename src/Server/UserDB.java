@@ -3,8 +3,10 @@ package Server;
 import Commons.WQRegisterInterface;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
+import com.google.gson.reflect.TypeToken;
 
 import java.io.*;
+import java.lang.reflect.Type;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -23,29 +25,39 @@ import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static Commons.Constants.*;
+
 /**
  * Class representing and collecting the users and their relations. Handles all the operations involving users
  * The class has only static method so they can be called easily where needed
  * Package private class, the class and the member can only be called by the Server components
+ *
+ * Thread safety is assured by the use of concurrent hash map
+ *
+ * Contains 3 inner classes used for data representation
  */
 class UserDB {
     static UserDB instance; //stores the only instance of the DB
 
-    private ConcurrentHashMap<String, User> usersTable = new ConcurrentHashMap<>(); //key -> username, value -> User object
-    private SimpleGraph relationsGraph = new SimpleGraph(); //store all the friend relationships of the user in a graph
+    private static ConcurrentHashMap<String, User> usersTable = new ConcurrentHashMap<>(); //key -> username, value -> User object
+    private static SimpleGraph relationsGraph = new SimpleGraph(); //store all the friend relationships of the user in a graph
 
     //temporarily stores all the user involved in pending challenges for fast retrieval
     transient private ConcurrentHashMap<SocketAddress, ChallengeInfo> pendingChallenges = new ConcurrentHashMap<>();
 
-    transient private static byte[] oldJsonFile = new byte[0]; //contains the latest copy of this DB stored to file
+    transient private static byte[][] oldJsonFile = new byte[2][0]; //contains the latest copy of this DB stored to file
 
     /*
       Init of the database, if found restores the users from file
      */
     static {
-        try(BufferedReader bufferedReader = new BufferedReader(new FileReader(Consts.USER_DB_FILENAME))) {
+        try(BufferedReader tableReader = new BufferedReader(new FileReader(Consts.USER_TABLE_FILENAME));
+            BufferedReader graphReader = new BufferedReader(new FileReader(Consts.USER_GRAPH_FILENAME))) {
             Gson gson = new Gson();
-            instance = gson.fromJson(bufferedReader, UserDB.class);
+            Type userTableType = new TypeToken<ConcurrentHashMap<String, User>>() {}.getType();
+            usersTable = gson.fromJson(tableReader, userTableType);
+            relationsGraph = gson.fromJson(graphReader, SimpleGraph.class);
+            instance = new UserDB();
             instance.logoutAll();
         } catch (FileNotFoundException e) {
             //file doesn't exist, yet
@@ -56,9 +68,9 @@ class UserDB {
             instance = new UserDB();
         }
 
-        /*
-            Daemon thread who write every interval the db to file
-         */
+
+
+        //Daemon thread which writes every interval the db to file
         Thread saveThread = new Thread(() -> {
             try {
                 while (true){
@@ -70,16 +82,8 @@ class UserDB {
             }
         });
         saveThread.setDaemon(true);
-//        saveThread.start();
-        //TODO: uncomment
+        saveThread.start();
 
-    }
-
-    /**
-     * Logs out all the user in the database
-     */
-    private void logoutAll() {
-        usersTable.forEach((s, user) -> user.logout());
     }
 
     /**
@@ -89,21 +93,32 @@ class UserDB {
      */
     private static void storeToFile(){
         Gson gson = new Gson();
-        byte[] jsonFile = gson.toJson(instance).getBytes(StandardCharsets.UTF_8);
+        Type userTableType = new TypeToken<ConcurrentHashMap<String, User>>() {}.getType();
+        byte[] jsonTable = gson.toJson(usersTable, userTableType).getBytes(StandardCharsets.UTF_8);
+        byte[] jsonGraph = gson.toJson(relationsGraph).getBytes(StandardCharsets.UTF_8);
 
-        if(jsonFile != oldJsonFile) {
-            ByteBuffer byteBuffer = ByteBuffer.wrap(jsonFile);
+        if(jsonTable != oldJsonFile[0] || jsonGraph != oldJsonFile[1]) {
 
-            try (FileChannel dbSaveFile = FileChannel.open(Paths.get(Consts.USER_DB_FILENAME_TMP), StandardOpenOption.WRITE, StandardOpenOption.CREATE);) {
-//
+            try (FileChannel jsonTableFile = FileChannel.open(Paths.get(Consts.USER_TABLE_FILENAME_TMP), StandardOpenOption.WRITE, StandardOpenOption.CREATE);
+                 FileChannel jsonGraphFile = FileChannel.open(Paths.get(Consts.USER_GRAPH_FILENAME_TMP), StandardOpenOption.WRITE, StandardOpenOption.CREATE)) {
+                ByteBuffer byteBuffer = ByteBuffer.wrap(jsonTable);
 
                 while (byteBuffer.hasRemaining()) {
-                    dbSaveFile.write(byteBuffer);
+                    jsonTableFile.write(byteBuffer);
                 }
 
                 //attempts to rename the file, outcome may be implementation specific (works with linux + jdk 12)
                 //TODO: check other systems
-                Files.move(Paths.get(Consts.USER_DB_FILENAME_TMP), Paths.get(Consts.USER_DB_FILENAME),
+                Files.move(Paths.get(Consts.USER_TABLE_FILENAME_TMP), Paths.get(Consts.USER_TABLE_FILENAME),
+                        StandardCopyOption.ATOMIC_MOVE , StandardCopyOption.REPLACE_EXISTING);
+
+                byteBuffer = ByteBuffer.wrap(jsonGraph);
+
+                while (byteBuffer.hasRemaining()) {
+                    jsonGraphFile.write(byteBuffer);
+                }
+
+                Files.move(Paths.get(Consts.USER_GRAPH_FILENAME_TMP), Paths.get(Consts.USER_GRAPH_FILENAME),
                         StandardCopyOption.ATOMIC_MOVE , StandardCopyOption.REPLACE_EXISTING);
 
             } catch (IOException e) {
@@ -164,7 +179,7 @@ class UserDB {
      * @throws AlreadyLoggedException When the user is already logged
      */
     void logUser(String username, String password, InetAddress address, int TCPPort) throws UserNotFoundException, WQRegisterInterface.InvalidPasswordException, AlreadyLoggedException {
-        logUser(username, password, address, TCPPort,  Consts.UDP_PORT);
+        logUser(username, password, address, TCPPort,  UDP_PORT);
     }
 
     /**
@@ -183,9 +198,14 @@ class UserDB {
         user.logout();
     }
 
+    /**
+     * Logs out all the user in the database
+     */
+    private void logoutAll() {
+        usersTable.forEach((s, user) -> user.logout());
+    }
 
 
-    //TODO: fix -> a user can add a friendship between other users if they are all logged
     /**
      * Creates a friendship between the given user
      * @param username1 The user who requested the friendship
@@ -239,6 +259,59 @@ class UserDB {
     }
 
     /**
+     * Retrieves the score of the given user
+     * @param name The name of the user
+     * @param address His current IP address
+     * @param TCPPort His current TCP port
+     * @return The score of the given user
+     */
+    int getScore(String name, InetAddress address, int TCPPort) throws NotLoggedException, UserNotFoundException {
+        User user = usersTable.get(name);
+        if(user == null)
+            throw new UserNotFoundException();
+        if(!user.isLogged(address, TCPPort))
+            throw new NotLoggedException();
+
+        return user.getScore();
+    }
+
+    /**
+     * Retrieves the ranking by score of all the friends of the given user
+     * @param name The name of the user
+     * @param address His current IP address
+     * @param TCPPort His current TCP port
+     * @return A json object of a string array with name and ranking of each user
+     */
+    String getRanking(String name, InetAddress address, int TCPPort) throws NotLoggedException, UserNotFoundException {
+        User user = usersTable.get(name);
+        if(user == null)
+            throw new UserNotFoundException();
+        if(!user.isLogged(address, TCPPort))
+            throw new NotLoggedException();
+        LinkedList<User> friends = relationsGraph.getLinkedNodes(user);
+        friends.add(user);
+        User[] rankingList = friends.toArray(new User[0]); //get array for faster access
+        Arrays.sort(rankingList, (o1, o2) -> o2.getScore() - o1.getScore());//sort by the score
+        String[] ranking = new String[rankingList.length]; //ranking with name and score
+
+        for(int i = 0; i < ranking.length; i++){
+            ranking[i] = rankingList[i].getName() + " " + rankingList[i].getScore();
+        }
+        Gson gson = new Gson();
+        return gson.toJson(ranking);
+    }
+
+    /**
+     * Updates the user score by the given amount
+     */
+    void updateScore(String name, int amount) {
+        User user = usersTable.get(name);
+        if(user == null)
+            return;
+        user.updateScore(amount);
+    }
+
+    /**
      * Creates a pending challenge
      * @throws UserNotFoundException If the user were not found
      * @throws NotFriendsException If the two users are not friends
@@ -246,7 +319,6 @@ class UserDB {
      * @throws SameUserException If the two user are the same
      * @return The datagram packet to be sent to the user who got challenged
      */
-    //TODO: fix username swap
     DatagramPacket challengeFriend(String challengerName, String challengedName, int challengerPort) throws UserNotFoundException, NotFriendsException, NotLoggedException, SameUserException {
         if(challengedName.equals(challengerName))
             throw new SameUserException();
@@ -265,7 +337,7 @@ class UserDB {
             throw new NotLoggedException();
 
         //send challenge request to the other user
-        String message = (Consts.REQUEST_CHALLENGE + " " + challengerName);
+        String message = (REQUEST_CHALLENGE + " " + challengerName);
         byte[] challengeRequest = message.getBytes(StandardCharsets.UTF_8);
 
         DatagramPacket requestPacket = new DatagramPacket(challengeRequest, challengeRequest.length, challenged.getAddress(), challenged.getUDPPort());
@@ -301,7 +373,7 @@ class UserDB {
 
         int matchId = ChallengeHandler.instance.createChallenge(challenger.name, challenged.name);
 
-        return (Consts.RESPONSE_OK + " " + matchId).getBytes(StandardCharsets.UTF_8);
+        return (RESPONSE_OK + " " + matchId).getBytes(StandardCharsets.UTF_8);
     }
 
     /**
@@ -318,62 +390,12 @@ class UserDB {
         return new DatagramPacket(errorMessage, errorMessage.length, challengerAddress);
     }
 
-    /**
-     * Retrieves the score of the given user
-     * @param name The name of the user
-     * @param address His current IP address
-     * @param TCPPort His current TCP port
-     * @return The score of the given user
-     */
-    int getScore(String name, InetAddress address, int TCPPort) throws NotLoggedException, UserNotFoundException {
-        User user = usersTable.get(name);
-        if(user == null)
-            throw new UserNotFoundException();
-        if(!user.isLogged(address, TCPPort))
-            throw new NotLoggedException();
-
-        return user.getScore();
-    }
-
-    /**
-     * Retrieves the ranking by score of all the friends of the given user
-     * @param name The name of the user
-     * @param address His current IP address
-     * @param TCPPort His current TCP port
-     * @return A json object of a string array with name and ranking of each user
-     */
-    String getRanking(String name, InetAddress address, int TCPPort) throws NotLoggedException, UserNotFoundException {
-        User user = usersTable.get(name);
-        if(user == null)
-            throw new UserNotFoundException();
-        if(!user.isLogged(address, TCPPort))
-            throw new NotLoggedException();
-        var friends = relationsGraph.getLinkedNodes(user);
-        friends.add(user);
-        User[] rankingList = friends.toArray(new User[0]); //get array for faster access
-        Arrays.sort(rankingList, (o1, o2) -> o2.getScore() - o1.getScore());//sort by the score
-        String[] ranking = new String[rankingList.length]; //ranking with name and score
-
-        for(int i = 0; i < ranking.length; i++){
-            ranking[i] = rankingList[i].getName() + " " + rankingList[i].getScore();
-        }
-        Gson gson = new Gson();
-        return gson.toJson(ranking);
-    }
-
-    void updateScore(String name, int amount) {
-        User user = usersTable.get(name);
-        if(user == null)
-            return;
-        user.updateScore(amount);
-    }
-
 
     /**
      * Class representing the user.
      * It keeps all the useful info and provides basic ops for the user
      *
-     * Thread safety is assured by the use of Vector
+     * Thread-safety is assured by the logic of class usage and of 'synchronized' when needed
      */
     static class User{
         private String name;
@@ -385,13 +407,13 @@ class UserDB {
         private int id;
 
         //counter is shared between multiple threads and instances
-        private static final AtomicInteger idCounter = new AtomicInteger(0); //every user has its id assigned at constructor time
+        private static final AtomicInteger idCounter = new AtomicInteger(); //every user has its id assigned at constructor time
 
 
         User(String name, String password){
             this.name = name;
             this.password = password;
-            id = idCounter.getAndIncrement();
+            id = usersTable.size() + idCounter.getAndIncrement();
         }
 
         int getId() {
@@ -502,10 +524,13 @@ class UserDB {
          * @return All the nodes linked to user
          */
         LinkedList<User> getLinkedNodes(User user){
-            return (LinkedList<User>) adjacencyList.get(user.getId()).clone();
+            return new LinkedList<>(adjacencyList.get(user.getId()));
         }
     }
 
+    /**
+     * data class used to store info of pending challenges
+     */
     private static class ChallengeInfo{
         private String name;
         private Long timestamp;

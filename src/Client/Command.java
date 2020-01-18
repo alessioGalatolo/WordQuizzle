@@ -1,9 +1,12 @@
 package Client;
 
-import Server.Consts;
-
 import java.util.Random;
 
+import static Commons.Constants.*;
+
+/**
+ * Class containing all the command a user can enter
+ */
 public enum Command {
     REGISTER,
     LOGIN,
@@ -26,15 +29,15 @@ public enum Command {
 
     public static String usage() {
         String usage = "Usage: \n";
-        usage += Consts.REQUEST_REGISTER + " username password\n";
-        usage += Consts.REQUEST_LOGIN + " username password\n";
-        usage += Consts.REQUEST_LOGOUT + " username\n";
-        usage += Consts.REQUEST_ADD_FRIEND + " yourUsername otherUsername\n";
-        usage += Consts.REQUEST_FRIEND_LIST + " yourUsername\n";
-        usage += Consts.REQUEST_RANKINGS + " yourUsername\n";
-        usage += Consts.REQUEST_CHALLENGE + " yourUsername otherUsername\n";
-        usage += Consts.REQUEST_SCORE + " yourUsername\n";
-        usage += Consts.REQUEST_TERMINATION + " to exit";
+        usage += REQUEST_REGISTER + " username password\n";
+        usage += REQUEST_LOGIN + " username password\n";
+        usage += REQUEST_LOGOUT + " username\n";
+        usage += REQUEST_ADD_FRIEND + " yourUsername otherUsername\n";
+        usage += REQUEST_FRIEND_LIST + " yourUsername\n";
+        usage += REQUEST_RANKINGS + " yourUsername\n";
+        usage += REQUEST_CHALLENGE + " yourUsername otherUsername\n";
+        usage += REQUEST_SCORE + " yourUsername\n";
+        usage += REQUEST_TERMINATION + " to exit";
         return usage;
     }
 }

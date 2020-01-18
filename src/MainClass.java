@@ -1,12 +1,17 @@
 import Client.AutoClient;
 import Client.AutoClientTesting;
 import Client.HumanClient;
-import Server.Consts;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 
+import static Commons.Constants.BASE_USERNAME;
+import static Commons.Constants.N_CLIENTS;
+
+/**
+ * Class to be run to test the program.
+ */
 public class MainClass {
 
     public static void main(String[] args) {
@@ -17,10 +22,10 @@ public class MainClass {
             while (true) {
                 response = input.readLine();
                 if (response.equals("auto")) {
-                    System.out.println("In 5 seconds I'm going to launch the server and " + Consts.N_CLIENTS + " instances of clients");
+                    System.out.println("In 5 seconds I'm going to launch the server and " + N_CLIENTS + " instances of clients");
                     System.out.println("Write quit at any moment to terminate the server");
 
-                    for (int i = 0; i < Consts.N_CLIENTS; i++) {
+                    for (int i = 0; i < N_CLIENTS; i++) {
                         int finalI = i;
                         new Thread(() -> {
                             try {
@@ -34,7 +39,7 @@ public class MainClass {
                                 e.printStackTrace();
                             }
 
-                            AutoClientTesting.main(new String[]{Consts.BASE_USERNAME + finalI, "test"});
+                            AutoClientTesting.main(new String[]{BASE_USERNAME + finalI, "test"});
                         }).start();
                     }
 
@@ -43,7 +48,7 @@ public class MainClass {
 
                     return;
                 } else if (response.equals("human")) {
-                    System.out.println("I'm going to launch the server and a client which will emulate human behaviour");
+                    System.out.println("I'm launching the server and a client which will emulate human behaviour");
                     Thread server = new Thread(() -> Server.Main.main(new String[]{"test"}));
                     server.start();
 
@@ -57,9 +62,9 @@ public class MainClass {
                     Thread otherClient = new Thread(new AutoClient());
                     otherClient.start();
 
-                    System.out.println("Now I'm going to launch a human client\n");
-                    System.out.println("For the interaction with other users please use the name " + Consts.BASE_USERNAME);
-                    System.out.println("Ex: sfida <your username> " + Consts.BASE_USERNAME);
+                    System.out.println("Now I will also launch a human client\n");
+                    System.out.println("For the interaction with other users please use the name " + BASE_USERNAME);
+                    System.out.println("Ex: sfida <your username> " + BASE_USERNAME);
                     HumanClient.main(new String[0]);
 
                     otherClient.interrupt();

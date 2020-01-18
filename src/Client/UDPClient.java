@@ -1,7 +1,5 @@
 package Client;
 
-import Server.Consts;
-
 import java.io.IOException;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
@@ -12,6 +10,9 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Predicate;
 
+import static Client.Consts.ACCEPTABLE_WAIT_CHALLENGE_CONFIRM;
+import static Client.Consts.getRequestChallenge;
+import static Commons.Constants.*;
 import static java.lang.Thread.interrupted;
 
 
@@ -48,14 +49,14 @@ class UDPClient implements AutoCloseable{
      */
     UDPClient(AtomicBoolean startChallenge, AtomicBoolean userBusy, Predicate<String> challengeRequestFun) throws SocketException {
         socket = new DatagramSocket();
-        socket.setSoTimeout(Consts.UDP_CLIENT_TIMEOUT);
+        socket.setSoTimeout(UDP_CLIENT_TIMEOUT);
 
         //one thread always waiting for incoming messages
         readerThread = new Thread(() -> {
             //Defining the runnable of the thread
 
             while (!interrupted()){
-                byte[] buffer = new byte[Consts.MAX_MESSAGE_LENGTH];
+                byte[] buffer = new byte[MAX_MESSAGE_LENGTH];
                 DatagramPacket datagramPacket = new DatagramPacket(buffer, buffer.length);
                 try {
                     socket.receive(datagramPacket);
@@ -66,24 +67,24 @@ class UDPClient implements AutoCloseable{
 
 
                     //if message contains a challenge request
-                    if(messageFragments[0].equals(Consts.REQUEST_CHALLENGE)){
+                    if(messageFragments[0].equals(REQUEST_CHALLENGE)){
 
                         //checks if user accepts challenge
                         if(!userBusy.get() && challengeRequestFun.test(messageFragments[1])){
                             //challenge accepted
-                            byte[] okResponse = Consts.RESPONSE_OK.getBytes(StandardCharsets.UTF_8);
-                            datagramPacket = new DatagramPacket(okResponse, okResponse.length, InetAddress.getByName(Consts.SERVER_ADDRESS), Consts.SERVER_UDP_PORT);
+                            byte[] okResponse = RESPONSE_OK.getBytes(StandardCharsets.UTF_8);
+                            datagramPacket = new DatagramPacket(okResponse, okResponse.length, InetAddress.getByName(SERVER_ADDRESS), SERVER_UDP_PORT);
                             socket.send(datagramPacket);
 
                             waitingChallengeStart = true;
 
                         } else {
-                            byte[] failResponse = Consts.CHALLENGE_REFUSED.getBytes(StandardCharsets.UTF_8);
-                            datagramPacket = new DatagramPacket(failResponse, failResponse.length, InetAddress.getByName(Consts.SERVER_ADDRESS), Consts.SERVER_UDP_PORT);
+                            byte[] failResponse = CHALLENGE_REFUSED.getBytes(StandardCharsets.UTF_8);
+                            datagramPacket = new DatagramPacket(failResponse, failResponse.length, InetAddress.getByName(SERVER_ADDRESS), SERVER_UDP_PORT);
                             socket.send(datagramPacket);
                         }
 
-                    } else if(waitingChallengeStart && messageFragments[0].equals(Consts.RESPONSE_OK)) {
+                    } else if(waitingChallengeStart && messageFragments[0].equals(RESPONSE_OK)) {
                         latestMatchId = Integer.parseInt(messageFragments[1]);
                         waitingChallengeStart = false;
                         startChallenge.set(true);
@@ -121,15 +122,15 @@ class UDPClient implements AutoCloseable{
      */
     Boolean requestChallenge(String thisUser, String otherUser){
         try {
-            byte[] challengeRequest = Consts.getRequestChallenge(thisUser, otherUser).getBytes(StandardCharsets.UTF_8);
-            DatagramPacket datagramPacket = new DatagramPacket(challengeRequest, challengeRequest.length, InetAddress.getByName(Consts.SERVER_ADDRESS), Consts.SERVER_UDP_PORT);
+            byte[] challengeRequest = getRequestChallenge(thisUser, otherUser).getBytes(StandardCharsets.UTF_8);
+            DatagramPacket datagramPacket = new DatagramPacket(challengeRequest, challengeRequest.length, InetAddress.getByName(SERVER_ADDRESS), SERVER_UDP_PORT);
             socket.send(datagramPacket);
             if(test)
                 System.out.println(Thread.currentThread().getName() + " udp sent " + new String(challengeRequest));
             messagesLock.lock();
             int currentLength = receivedMessages.size();
             while (currentLength == receivedMessages.size())
-                if(!newMessage.await(Consts.CHALLENGE_REQUEST_TIMEOUT * 2, TimeUnit.MILLISECONDS)) {
+                if(!newMessage.await(ACCEPTABLE_WAIT_CHALLENGE_CONFIRM, TimeUnit.MILLISECONDS)) {
                     messagesLock.unlock();
                     return false;
                 }
@@ -138,7 +139,7 @@ class UDPClient implements AutoCloseable{
             String[] messageFragments = message.split(" ");
             receivedMessages.remove(currentLength);
             messagesLock.unlock();
-            if(messageFragments[0].equals(Consts.RESPONSE_OK)){
+            if(messageFragments[0].equals(RESPONSE_OK)){
                 latestMatchId = Integer.parseInt(messageFragments[1]);
                 return true;
             }else {
