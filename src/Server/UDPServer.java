@@ -26,7 +26,7 @@ class UDPServer extends Thread {
 
             socket.setSoTimeout(Consts.UDP_SERVER_TIMEOUT);
 
-            byte[] buffer = new byte[Consts.ARRAY_INIT_SIZE];
+            byte[] buffer = new byte[Consts.MAX_MESSAGE_LENGTH];
             DatagramPacket request = new DatagramPacket(buffer, buffer.length);
 
             while (!interrupted()) {
@@ -37,7 +37,6 @@ class UDPServer extends Thread {
                     //get message string
                     String message = new String(buffer, 0, request.getLength(), StandardCharsets.UTF_8);
                     String[] messageFragments = message.split(" ");
-                    System.out.println("UDP received " + message);
 
                     SocketAddress challengedAddress;
                     SocketAddress challengerAddress;
@@ -89,7 +88,6 @@ class UDPServer extends Thread {
                                 byte[] confirmationResponse = UserDB.instance.getChallengeConfirm(challengerAddress, challengedAddress);
 
                                 DatagramPacket challengeConfirmationPacket = new DatagramPacket(confirmationResponse, confirmationResponse.length, challengedAddress);
-                                System.out.println(new String(challengeConfirmationPacket.getData(), 0, challengeConfirmationPacket.getLength(), StandardCharsets.UTF_8));
                                 socket.send(challengeConfirmationPacket);
                                 challengeConfirmationPacket.setSocketAddress(challengerAddress);
                                 socket.send(challengeConfirmationPacket);
@@ -143,7 +141,6 @@ class UDPServer extends Thread {
     private void sendErrorMessage(DatagramSocket datagramSocket, String errorMessage, SocketAddress address) throws IOException {
         byte[] response = errorMessage.getBytes(StandardCharsets.UTF_8);
         DatagramPacket errorPacket = new DatagramPacket(response, response.length, address);
-        System.out.println("Sending " + errorMessage);
         datagramSocket.send(errorPacket);
     }
 
@@ -157,7 +154,6 @@ class UDPServer extends Thread {
     private void sendErrorMessage(DatagramSocket datagramSocket, String errorMessage, InetAddress address, int port) throws IOException {
         byte[] response = errorMessage.getBytes(StandardCharsets.UTF_8);
         DatagramPacket errorPacket = new DatagramPacket(response, response.length, address, port);
-        System.out.println("Sending " + errorMessage);
         datagramSocket.send(errorPacket);
     }
 

@@ -12,11 +12,12 @@ import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 final class Handler implements Runnable {
     private final SocketChannel socket;
     private final SelectionKey selectionKey;
-    private boolean processed = false;
+    private AtomicBoolean processed = new AtomicBoolean(false);
     private ByteBuffer input = ByteBuffer.allocate(Consts.MAX_MESSAGE_LENGTH);
     private ByteBuffer preOutput = ByteBuffer.allocate(Consts.INT_SIZE);
     private ByteBuffer output = ByteBuffer.allocate(Consts.MAX_MESSAGE_LENGTH);
@@ -47,7 +48,7 @@ final class Handler implements Runnable {
                     send();
                 else if (selectionKey.isValid() && selectionKey.isReadable())
                     read();
-            }else if(state == PROCESSING && processed){
+            }else if(state == PROCESSING && processed.get()){
                 state = IO_OPERATION;
             }
         } catch (IOException e) {
@@ -70,11 +71,10 @@ final class Handler implements Runnable {
 
     private void send() throws IOException {
 
-        if(!processed && state != PROCESSING) {
+        if(!processed.get()) {
             state = PROCESSING;
             threadPool.execute(this::process);
-        }
-        else if(preOutput.hasRemaining()){
+        } else if(preOutput.hasRemaining()){
             socket.write(preOutput);
             selectionKey.interestOps(SelectionKey.OP_WRITE);
         } else {
@@ -84,7 +84,7 @@ final class Handler implements Runnable {
                 output.clear();
                 input.clear();
                 preOutput.clear();
-                processed = false;
+                processed.set(false);
             }
         }
     }
@@ -92,12 +92,12 @@ final class Handler implements Runnable {
     private void process(){
         input.flip();
         String message = new String(input.array(), input.arrayOffset(), input.remaining(), StandardCharsets.UTF_8);
-        System.out.println("TCP received: " + message);
         String[] messageFragments = message.split(" ");
 
         //variables to be used inside switch statement
         String response = "";
         int matchId = 0;
+        String username = "";
 
         try {
             InetAddress clientAddress = ((InetSocketAddress) ((SocketChannel) selectionKey.channel()).getRemoteAddress()).getAddress();
@@ -152,25 +152,33 @@ final class Handler implements Runnable {
                 case Consts.REQUEST_NEXT_WORD:
                     //Check correctness of translated word, then send new word
                     matchId = Integer.parseInt(messageFragments[1]);
-                    String username = messageFragments[2];
+                    username = messageFragments[2];
                     String translatedWord = messageFragments[3];
                     String wellTranslatedWord = ChallengeHandler.instance.checkTranslation(matchId, username, translatedWord);
                     boolean outcome = wellTranslatedWord != null && wellTranslatedWord.toLowerCase().equals(translatedWord.toLowerCase());
-                    response = Consts.getTranslationResponseServer(matchId, translatedWord, wellTranslatedWord, outcome);
+                    response = Consts.getResponseTranslationServer(matchId, translatedWord, wellTranslatedWord, outcome);
 
                     response += "\n";
 
                 case Consts.REQUEST_READY_FOR_CHALLENGE:
                     //client is ready for a match
                     matchId = Integer.parseInt(messageFragments[1]);
-                    String user = messageFragments[2];
-                    String nextWord = ChallengeHandler.instance.getNextWord(matchId, user);
-                    response += Consts.getNextWordResponse(matchId, nextWord);
+                    username = messageFragments[2];
+                    String nextWord = ChallengeHandler.instance.getNextWord(matchId, username);
+                    response += Consts.getResponseNextWord(matchId, nextWord);
 
+                    response += "\n" + Consts.getResponseTimeRemaining(ChallengeHandler.instance.getTime(matchId));
                     break;
+                case Consts.REQUEST_CHALLENGE_RECAP:
+                    matchId = Integer.parseInt(messageFragments[1]);
+                    username = messageFragments[2];
+                    output = ByteBuffer.allocate(Consts.MAX_MESSAGE_LENGTH);
+                    threadPool.execute(new RecapTask(matchId, output, preOutput, processed, threadPool));
+                    return;
+
 
                 default:
-                    System.out.println("TCP, unknown command: " + messageFragments[0]);
+                    System.err.println("TCP, unknown command: " + messageFragments[0]);
                     response = Consts.RESPONSE_UNKNOWN_REQUEST;
                     break;
             }
@@ -191,10 +199,10 @@ final class Handler implements Runnable {
         } catch (ChallengeHandler.Challenge.GameTimeoutException e) {
             response = Consts.RESPONSE_CHALLENGE_TIMEOUT + "\n";
             response += ChallengeHandler.instance.getRecap(matchId);
-        } catch (ChallengeHandler.Challenge.EndOfMatchException e) {
-            response += ChallengeHandler.instance.getRecap(matchId); //TODO: wait other user
         } catch (ChallengeHandler.Challenge.UnknownUsernameException e) {
             response = Consts.RESPONSE_UNKNOWN_USERNAME;
+        } catch (ChallengeHandler.Challenge.EndOfMatchException e) {
+            response += Consts.RESPONSE_WAITING_OTHER_USER;
         }
 
         catch (IndexOutOfBoundsException e){
@@ -205,12 +213,11 @@ final class Handler implements Runnable {
         }
 
         output = ByteBuffer.wrap(response.getBytes(StandardCharsets.UTF_8));
-        System.out.println("Writing: " + response);
 
         //sending first the size of the buffer to be allocated
         preOutput.putInt(output.remaining());
         preOutput.flip();
-        processed = true;
+        processed.set(true);
 
     }
 

@@ -13,7 +13,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
-import java.util.GregorianCalendar;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -117,6 +116,8 @@ class ChallengeHandler {
      * @param matchId The current match ID
      * @param user The user request a new word
      * @return The word to be translated
+     * @throws Challenge.EndOfMatchException If the match is over so there are no next words
+     * @throws Challenge.UnknownUsernameException When the given user is not in the challenge
      */
     String getNextWord(int matchId, String user) throws Challenge.EndOfMatchException, Challenge.UnknownUsernameException {
         return challenges.get(matchId).getNextWord(user);
@@ -130,8 +131,8 @@ class ChallengeHandler {
      */
     int createChallenge(String user1, String user2){
         Challenge newChallenge = new Challenge(user1, user2, dictionary);
-        challenges.put(newChallenge.getId(), newChallenge);
-        return newChallenge.getId();
+        challenges.put(newChallenge.id, newChallenge);
+        return newChallenge.id;
     }
 
     /**
@@ -179,7 +180,11 @@ class ChallengeHandler {
     }
 
     boolean challengeIsFinished(int matchId) {
-        return challenges.get(matchId).finished;
+        return challenges.get(matchId).isFinished();
+    }
+
+    long getTime(int matchId) {
+        return Consts.CHALLENGE_TIMEOUT - System.currentTimeMillis() + challenges.get(matchId).challengeTimestamp;
     }
 
     /**
@@ -196,16 +201,15 @@ class ChallengeHandler {
         private int id; //challenge id
         private String user1; //first user of the challenge
         private String user2; //second user of the challenge
-        private long user1Timestamp = 0; //time at which the user1 started the challenge
-        private long user2Timestamp = 0; //time at which the user2 started the challenge
+        private long challengeTimestamp = 0; //time at which the challenge started
         private int user1CompletedWords = 0;
         private int user2CompletedWords = 0;
         private int user1Score = 0;
         private int user2Score = 0;
-        private boolean finished = false; //stores whether or not the challenge is over
+        private int finished = 0; //stores whether or not the challenge is over (0 -> not, 1 -> just one user, 2 -> both)
         private String[] selectedWords = new String[Consts.CHALLENGE_WORDS_TO_MATCH]; //contains selected words to be translated
         private String[][] translatedWords = new String[Consts.CHALLENGE_WORDS_TO_MATCH][Consts.MAX_TRANSLATIONS_PER_WORD];
-        private static Random random = new Random(GregorianCalendar.getInstance().getTimeInMillis()); //random generator to get the challenge words
+        private static Random random = new Random(System.currentTimeMillis()); //random generator to get the challenge words
 
         /**
          * Creates a challenge and assigns it a new ID
@@ -228,10 +232,13 @@ class ChallengeHandler {
             }
         }
 
-        int getId() {
-            return id;
+        boolean isFinished(){
+            return finished > 1 || timeout();
         }
 
+        boolean timeout(){
+            return System.currentTimeMillis() - challengeTimestamp >= Consts.CHALLENGE_TIMEOUT;
+        }
 
         /**
          * Retrieves next word to be sent and sets the timer for the challenge if needed
@@ -241,27 +248,34 @@ class ChallengeHandler {
          * @throws UnknownUsernameException When the given user is not in the challenge
          */
         synchronized String getNextWord(String user) throws EndOfMatchException, UnknownUsernameException {
+            if(challengeTimestamp == 0)
+                challengeTimestamp = System.currentTimeMillis();
             if(user.equals(user1)) {
-                if(user1Timestamp == 0)
-                    user1Timestamp = System.currentTimeMillis();
                 if(user1CompletedWords < Consts.CHALLENGE_WORDS_TO_MATCH)
                     return selectedWords[user1CompletedWords++];
                 else {
-                    finished = true;
+                    finished++;
+                    checkTermination();
                     throw new EndOfMatchException();
                 }
             }else if(user.equals(user2)) {
-                if (user2Timestamp == 0)
-                    user2Timestamp = System.currentTimeMillis();
                 if(user2CompletedWords < Consts.CHALLENGE_WORDS_TO_MATCH)
                     return selectedWords[user2CompletedWords++];
                 else {
-                    finished = true;
+                    finished++;
+                    checkTermination();
                     throw new EndOfMatchException();
                 }
             }
             //no match for the username
-            throw new UnknownUsernameException("User " + user + " was not found in: " + user1 + user2);
+            throw new UnknownUsernameException("User " + user + " was not found in: " + user1 + " " + user2);
+        }
+
+        private void checkTermination() {
+            if(isFinished()){
+                UserDB.instance.updateScore(user1, user1Score);
+                UserDB.instance.updateScore(user2, user2Score);
+            }
         }
 
 
@@ -274,21 +288,21 @@ class ChallengeHandler {
          */
         synchronized void updateScore(String user, int amount) throws GameTimeoutException, UnknownUsernameException {
             if(user.equals(user1)) {
-                if(System.currentTimeMillis() - user1Timestamp < Consts.CHALLENGE_TIMEOUT)
-                    user1Score += amount;
-                else {
-                    finished = true;
+                if(timeout()){
+                    finished++;
+                    checkTermination();
                     throw new GameTimeoutException();
                 }
+                user1Score += amount;
                 return;
             }
             else if(user.equals(user2)) {
-                if(System.currentTimeMillis() - user2Timestamp < Consts.CHALLENGE_TIMEOUT)
-                    user2Score += amount;
-                else {
-                    finished = true;
+                if(timeout()){
+                    finished++;
+                    checkTermination();
                     throw new GameTimeoutException();
                 }
+                user2Score += amount;
                 return;
             }
             //no username matches found
@@ -320,7 +334,6 @@ class ChallengeHandler {
         private String[] getTranslation(String originalWord) {
             try {
                 URL url = new URL(Consts.getTranslationURL(originalWord));
-                System.out.println("Doing an http request");
                 try(var inputStream = new BufferedReader(new InputStreamReader(url.openStream()))){
                     StringBuilder stringBuilder = new StringBuilder();
                     Gson gson = new Gson();
@@ -364,7 +377,7 @@ class ChallengeHandler {
 
         @Override
         public String toString() {
-            String recap = "Time elapsed since the beginning of the challenge: " + (System.currentTimeMillis() - user1Timestamp)/1000 + " s\n";
+            String recap = "Time elapsed since the beginning of the challenge: " + (System.currentTimeMillis() - challengeTimestamp)/1000 + " s\n";
             recap += "User " + user1 + " scored a total of " + user1Score + " points" + "\n";
             recap += "User " + user2 + " scored a total of " + user2Score + " points";
             return recap;

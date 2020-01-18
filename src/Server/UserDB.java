@@ -70,8 +70,8 @@ class UserDB {
             }
         });
         saveThread.setDaemon(true);
-        saveThread.start();
-
+//        saveThread.start();
+        //TODO: uncomment
 
     }
 
@@ -145,7 +145,7 @@ class UserDB {
         User user = usersTable.get(username);
         if(user == null)
             throw new UserNotFoundException();
-        if(user.isLogged(address, TCPPort))
+        if(user.isLogged())
             throw new AlreadyLoggedException();
         if(user.notMatches(username, password))
             throw new WQRegisterInterface.InvalidPasswordException();
@@ -266,7 +266,6 @@ class UserDB {
 
         //send challenge request to the other user
         String message = (Consts.REQUEST_CHALLENGE + " " + challengerName);
-        System.out.println("Sent " + message + " to " + challenged.getAddress() + " " + challenged.getUDPPort());
         byte[] challengeRequest = message.getBytes(StandardCharsets.UTF_8);
 
         DatagramPacket requestPacket = new DatagramPacket(challengeRequest, challengeRequest.length, challenged.getAddress(), challenged.getUDPPort());
@@ -297,14 +296,10 @@ class UserDB {
         long challengeInitialTime = challenged.timestamp;
 
         if(System.currentTimeMillis() - challengeInitialTime > Consts.CHALLENGE_REQUEST_TIMEOUT) {
-            System.out.println(System.currentTimeMillis() + " " + challengeInitialTime);
             throw new ChallengeRequestTimeoutException();
         }
 
         int matchId = ChallengeHandler.instance.createChallenge(challenger.name, challenged.name);
-
-        usersTable.get(challenger.name).addMatch(matchId);
-        usersTable.get(challenged.name).addMatch(matchId);
 
         return (Consts.RESPONSE_OK + " " + matchId).getBytes(StandardCharsets.UTF_8);
     }
@@ -366,6 +361,13 @@ class UserDB {
         return gson.toJson(ranking);
     }
 
+    void updateScore(String name, int amount) {
+        User user = usersTable.get(name);
+        if(user == null)
+            return;
+        user.updateScore(amount);
+    }
+
 
     /**
      * Class representing the user.
@@ -378,8 +380,6 @@ class UserDB {
         private String password;
         transient private InetAddress loginAddress = null;
         private int TCPPort;
-        private Vector<Integer> pendingMatchList = new Vector<>();
-        private Vector<Integer> doneMatchList = new Vector<>();
         private int UDPPort;
         private int score = 0;
         private int id;
@@ -400,24 +400,15 @@ class UserDB {
 
         /**
          * Updates the score of the user, retrieving the score of the pending matches
-         * @return The updated score
          */
-        int getScore() {
-            var iterator = pendingMatchList.iterator();
-            while(iterator.hasNext()){
-                int matchId = iterator.next();
-                try {
-                    if(ChallengeHandler.instance.challengeIsFinished(matchId)) {
-                        score += ChallengeHandler.instance.getScore(matchId, name);
-                        doneMatchList.add(matchId);
-                        iterator.remove();
-                    }
-                } catch (ChallengeHandler.Challenge.UnknownUsernameException e) {
-                    e.printStackTrace();
-                }
-            }
+        synchronized void updateScore(int amount){
+            score += amount;
             if(score < 0)
                 score = 0;
+        }
+
+
+        int getScore() {
             return score;
         }
 
@@ -463,11 +454,6 @@ class UserDB {
 
         boolean isLogged(){
             return loginAddress != null;
-        }
-
-
-        void addMatch(int matchId) {
-            pendingMatchList.add(matchId);
         }
 
         @Override
