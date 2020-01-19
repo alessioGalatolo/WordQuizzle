@@ -1,6 +1,6 @@
-package Client;
+package client;
 
-import Commons.WQRegisterInterface;
+import commons.WQRegisterInterface;
 
 import java.io.IOException;
 import java.net.SocketAddress;
@@ -8,9 +8,12 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 
-import static Client.Consts.CHALLENGE_TIMEOUT;
-import static Commons.Constants.*;
+import static client.Consts.CHALLENGE_TIMEOUT;
+import static commons.Constants.*;
 
+/**
+ * A class that handles most of the actions of the client
+ */
 class ClientNetworkHandler implements AutoCloseable{
     private boolean test = false;
     private SocketChannel client;
@@ -119,6 +122,9 @@ class ClientNetworkHandler implements AutoCloseable{
         return message;
     }
 
+    /**
+     * @return a word iterator for the current challenge
+     */
     WordIterator getWordIterator(String user) throws IOException {
         return new WordIterator(udpClient.getLatestMatchId(), user);
     }
@@ -230,6 +236,9 @@ class ClientNetworkHandler implements AutoCloseable{
             return null;
         }
 
+        /**
+         * @return A string with all the error received separated by a new line
+         */
         String getErrors() {
             String error = errors;
             errors = "";
@@ -242,7 +251,7 @@ class ClientNetworkHandler implements AutoCloseable{
         String getRecap() throws IOException {
             if(hasNext())
                 return null;
-            String recapRequest = Consts.getRequestChallengeRecap(matchId, user);
+            String recapRequest = Consts.getRequestChallengeRecap(matchId);
             ByteBuffer messageBuffer = ByteBuffer.wrap(recapRequest.getBytes(StandardCharsets.UTF_8));
 
             //send translated word

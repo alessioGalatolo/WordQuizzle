@@ -1,4 +1,4 @@
-package Server;
+package server;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -8,7 +8,7 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 
 
-public class Reactor extends Thread implements AutoCloseable {
+class Reactor extends Thread implements AutoCloseable {
 
     private final Selector selector;
     private final ServerSocketChannel serverSocket;

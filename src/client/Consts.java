@@ -1,10 +1,13 @@
-package Client;
+package client;
 
-import static Commons.Constants.*;
+import static commons.Constants.*;
 
+/**
+ * All the constants used only by the client
+ */
 class Consts {
     static final String CHALLENGE_TIMEOUT = "Your time for the challenge expired";
-    static final long ACCEPTABLE_WAIT_CHALLENGE_CONFIRM = 10000;
+    static final long ACCEPTABLE_WAIT_CHALLENGE_CONFIRM = 10000; //time to wait for a datagram before considering the challenge refused
 
 
     /*
@@ -38,8 +41,8 @@ class Consts {
         return REQUEST_FRIEND_LIST + " " + user;
     }
 
-    static String getRequestChallengeRecap(int matchId, String username) {
-        return REQUEST_CHALLENGE_RECAP + " " + matchId + " " + username;
+    static String getRequestChallengeRecap(int matchId) {
+        return REQUEST_CHALLENGE_RECAP + " " + matchId;
     }
 
     /**

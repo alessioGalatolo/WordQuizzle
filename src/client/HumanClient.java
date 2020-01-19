@@ -1,6 +1,6 @@
-package Client;
+package client;
 
-import Commons.WQRegisterInterface;
+import commons.WQRegisterInterface;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -12,8 +12,11 @@ import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static Commons.Constants.*;
+import static commons.Constants.*;
 
+/**
+ * The final client that will be used by a user
+ */
 public class HumanClient {
 
     public static void main(String[] args) {
@@ -168,6 +171,12 @@ public class HumanClient {
 
     }
 
+    /**
+     * Starts and follows the progress of the challenge.
+     * It will get through input the translation to the words
+     * @param userBusy a bool to set when the user has finished the challenge
+     * @param input a buffered reader loaded on the system input
+     */
     private static void startChallenge(ClientNetworkHandler.WordIterator wordIterator, AtomicBoolean userBusy, BufferedReader input) throws IOException {
         String lastTranslation = null;
 

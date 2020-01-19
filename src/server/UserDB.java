@@ -1,6 +1,6 @@
-package Server;
+package server;
 
-import Commons.WQRegisterInterface;
+import commons.WQRegisterInterface;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.reflect.TypeToken;
@@ -19,18 +19,18 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static Commons.Constants.*;
+import static commons.Constants.*;
+import static server.UserDBExceptions.*;
 
 /**
  * Class representing and collecting the users and their relations. Handles all the operations involving users
  * The class has only static method so they can be called easily where needed
- * Package private class, the class and the member can only be called by the Server components
+ * Package private class, the class and the member can only be called by the server components
  *
  * Thread safety is assured by the use of concurrent hash map
  *
@@ -43,9 +43,11 @@ class UserDB {
     private static SimpleGraph relationsGraph = new SimpleGraph(); //store all the friend relationships of the user in a graph
 
     //temporarily stores all the user involved in pending challenges for fast retrieval
-    transient private ConcurrentHashMap<SocketAddress, ChallengeInfo> pendingChallenges = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<SocketAddress, ChallengeInfo> pendingChallenges = new ConcurrentHashMap<>();
 
-    transient private static byte[][] oldJsonFile = new byte[2][0]; //contains the latest copy of this DB stored to file
+    private static byte[][] oldJsonFile = new byte[2][0]; //contains the latest copy of this DB stored to file
+
+    private static final AtomicInteger userIdGenerator;
 
     /*
       Init of the database, if found restores the users from file
@@ -84,6 +86,8 @@ class UserDB {
         saveThread.setDaemon(true);
         saveThread.start();
 
+        userIdGenerator = new AtomicInteger(usersTable.size());
+
     }
 
     /**
@@ -98,6 +102,8 @@ class UserDB {
         byte[] jsonGraph = gson.toJson(relationsGraph).getBytes(StandardCharsets.UTF_8);
 
         if(jsonTable != oldJsonFile[0] || jsonGraph != oldJsonFile[1]) {
+            oldJsonFile[0] = jsonTable;
+            oldJsonFile[1] = jsonGraph;
 
             try (FileChannel jsonTableFile = FileChannel.open(Paths.get(Consts.USER_TABLE_FILENAME_TMP), StandardOpenOption.WRITE, StandardOpenOption.CREATE);
                  FileChannel jsonGraphFile = FileChannel.open(Paths.get(Consts.USER_GRAPH_FILENAME_TMP), StandardOpenOption.WRITE, StandardOpenOption.CREATE)) {
@@ -108,7 +114,6 @@ class UserDB {
                 }
 
                 //attempts to rename the file, outcome may be implementation specific (works with linux + jdk 12)
-                //TODO: check other systems
                 Files.move(Paths.get(Consts.USER_TABLE_FILENAME_TMP), Paths.get(Consts.USER_TABLE_FILENAME),
                         StandardCopyOption.ATOMIC_MOVE , StandardCopyOption.REPLACE_EXISTING);
 
@@ -140,7 +145,7 @@ class UserDB {
         if(password == null || password.isBlank()) //isBlank() requires java 11
             throw new WQRegisterInterface.InvalidPasswordException();
 
-        usersTable.put(username, new User(username, password));
+        usersTable.put(username, new User(username, password, userIdGenerator));
 
         relationsGraph.addNode();
     }
@@ -226,7 +231,7 @@ class UserDB {
             throw new UserNotFoundException();
         if(!user1.isLogged(address, TCPPort))
             throw new NotLoggedException();
-        if(relationsGraph.nodesAreLinked(user1, user2))
+        if (relationsGraph.nodesAreLinked(user1, user2))
             throw new AlreadyFriendsException();
 
         relationsGraph.addArch(user1, user2);
@@ -304,11 +309,11 @@ class UserDB {
     /**
      * Updates the user score by the given amount
      */
-    void updateScore(String name, int amount) {
+    void updateScore(String name, int amount, int matchId) {
         User user = usersTable.get(name);
         if(user == null)
             return;
-        user.updateScore(amount);
+        user.updateScore(amount, matchId);
     }
 
     /**
@@ -372,6 +377,8 @@ class UserDB {
         }
 
         int matchId = ChallengeHandler.instance.createChallenge(challenger.name, challenged.name);
+        usersTable.get(challenged.name).addMatch(matchId);
+        usersTable.get(challenger.name).addMatch(matchId);
 
         return (RESPONSE_OK + " " + matchId).getBytes(StandardCharsets.UTF_8);
     }
@@ -398,22 +405,24 @@ class UserDB {
      * Thread-safety is assured by the logic of class usage and of 'synchronized' when needed
      */
     static class User{
-        private String name;
-        private String password;
-        transient private InetAddress loginAddress = null;
+        private final String name;
+        private final String password;
+        private InetAddress loginAddress = null;
         private int TCPPort;
         private int UDPPort;
         private int score = 0;
-        private int id;
+        private final int id;
+
+        private int latestMatchId = 0; //store the id of the last match to check it when updating the score
 
         //counter is shared between multiple threads and instances
-        private static final AtomicInteger idCounter = new AtomicInteger(); //every user has its id assigned at constructor time
+//        private static final AtomicInteger idCounter = new AtomicInteger(); //every user has its id assigned at constructor time
 
 
-        User(String name, String password){
+        User(String name, String password, AtomicInteger userIdGenerator){
             this.name = name;
             this.password = password;
-            id = usersTable.size() + idCounter.getAndIncrement();
+            id = userIdGenerator.getAndIncrement();
         }
 
         int getId() {
@@ -423,10 +432,16 @@ class UserDB {
         /**
          * Updates the score of the user, retrieving the score of the pending matches
          */
-        synchronized void updateScore(int amount){
+        synchronized void updateScore(int amount, int matchId){
+            if(matchId != latestMatchId)
+                return;
             score += amount;
             if(score < 0)
                 score = 0;
+        }
+
+        void addMatch(int matchId) {
+            latestMatchId = matchId;
         }
 
 
@@ -485,6 +500,11 @@ class UserDB {
             }
             return super.equals(obj);
         }
+
+        @Override
+        public String toString() {
+            return name + " " + id + " " + score;
+        }
     }
 
     /**
@@ -532,33 +552,12 @@ class UserDB {
      * data class used to store info of pending challenges
      */
     private static class ChallengeInfo{
-        private String name;
-        private Long timestamp;
+        private final String name;
+        private final Long timestamp;
 
         private ChallengeInfo(String name, Long timestamp) {
             this.name = name;
             this.timestamp = timestamp;
         }
-    }
-
-    static class UserNotFoundException extends Exception {
-    }
-
-    static class AlreadyLoggedException extends Exception {
-    }
-
-    static class NotLoggedException extends Exception {
-    }
-
-    static class NotFriendsException extends Exception{
-    }
-
-    static class AlreadyFriendsException extends Exception {
-    }
-
-    static class SameUserException extends Exception{
-    }
-
-    static class ChallengeRequestTimeoutException extends Exception {
     }
 }

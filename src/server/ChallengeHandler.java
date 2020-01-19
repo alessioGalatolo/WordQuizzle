@@ -1,4 +1,4 @@
-package Server;
+package server;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -17,8 +17,9 @@ import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static Commons.Constants.*;
+import static commons.Constants.*;
 import static java.lang.Math.abs;
+import static server.ChallengeExceptions.*;
 
 /**
  * A class that handles the challenges: Creates all the challenges, keeps
@@ -32,10 +33,10 @@ import static java.lang.Math.abs;
  */
 class ChallengeHandler {
 
-    static ChallengeHandler instance = new ChallengeHandler();
+    static final ChallengeHandler instance = new ChallengeHandler();
 
     private String[] dictionary = null;
-    private static ConcurrentHashMap<Integer, Challenge> challenges = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Integer, Challenge> challenges = new ConcurrentHashMap<>();
 
 
     /**
@@ -116,7 +117,7 @@ class ChallengeHandler {
      * @param user The user request a new word
      * @return The word to be translated
      */
-    String getNextWord(int matchId, String user) throws Challenge.EndOfMatchException, Challenge.UnknownUsernameException {
+    String getNextWord(int matchId, String user) throws EndOfMatchException, UnknownUsernameException {
         return challenges.get(matchId).getNextWord(user);
     }
 
@@ -148,7 +149,7 @@ class ChallengeHandler {
      * @param userTranslatedWord The word translated by the user
      * @return The translation of the word
      */
-    String checkTranslation(int matchId, String user, String userTranslatedWord) throws Challenge.UnknownUsernameException, Challenge.GameTimeoutException {
+    String checkTranslation(int matchId, String user, String userTranslatedWord) throws UnknownUsernameException, GameTimeoutException {
         Challenge challenge = challenges.get(matchId);
         String[] translatedWord = challenge.getUserLastWordTranslation(user);
         String correctTranslation = translatedWord[0];
@@ -194,18 +195,18 @@ class ChallengeHandler {
         //counter is shared between multiple threads and instances
         private static final AtomicInteger idCounter = new AtomicInteger(0); //every challenge has its id assigned at construction time
 
-        private int id; //challenge id
-        private String user1; //first user of the challenge
-        private String user2; //second user of the challenge
+        private final int id; //challenge id
+        private final String user1; //first user of the challenge
+        private final String user2; //second user of the challenge
         private long challengeTimestamp = 0; //time at which the challenge started
         private int user1CompletedWords = 0;
         private int user2CompletedWords = 0;
         private int user1Score = 0;
         private int user2Score = 0;
-        private int finished = 0; //stores whether or not the challenge is over (0 -> not, 1 -> just one user, 2 -> both)
-        private String[] selectedWords = new String[CHALLENGE_WORDS_TO_MATCH]; //contains selected words to be translated
-        private String[][] translatedWords = new String[CHALLENGE_WORDS_TO_MATCH][Consts.MAX_TRANSLATIONS_PER_WORD]; //contains all the correct translations for the words in selectedWords
-        private static Random random = new Random(System.currentTimeMillis()); //random generator to get the challenge words
+        private int finished = 0; //stores whether or not the challenge is over (0 -> not, 1 -> just one user, 2 -> both, > 2 -> The challenge is over and win points have been awarded)
+        private final String[] selectedWords = new String[CHALLENGE_WORDS_TO_MATCH]; //contains selected words to be translated
+        private final String[][] translatedWords = new String[CHALLENGE_WORDS_TO_MATCH][Consts.MAX_TRANSLATIONS_PER_WORD]; //contains all the correct translations for the words in selectedWords
+        private final static Random random = new Random(System.currentTimeMillis()); //random generator to get the challenge words
 
         /**
          * Creates a challenge and assigns it a new ID
@@ -274,9 +275,14 @@ class ChallengeHandler {
          * If the challenge has ended it updated the score of the users in the db
          */
         private void checkTermination() {
-            if(isFinished()){
-                UserDB.instance.updateScore(user1, user1Score);
-                UserDB.instance.updateScore(user2, user2Score);
+            if(isFinished() && finished < 3){
+                finished = 10; //arbitrary number
+                if(user1Score > user2Score)
+                    user1Score += Consts.WIN_BONUS_POINTS;
+                else if (user2Score > user1Score)
+                    user2Score += Consts.WIN_BONUS_POINTS;
+                UserDB.instance.updateScore(user1, user1Score, id);
+                UserDB.instance.updateScore(user2, user2Score, id);
             }
         }
 
@@ -368,19 +374,6 @@ class ChallengeHandler {
             recap += "User " + user1 + " scored a total of " + user1Score + " points" + "\n";
             recap += "User " + user2 + " scored a total of " + user2Score + " points";
             return recap;
-        }
-
-
-        class GameTimeoutException extends Exception{
-        }
-
-        class EndOfMatchException extends Exception{
-        }
-
-        class UnknownUsernameException extends Exception {
-            UnknownUsernameException(String s) {
-                super(s);
-            }
         }
     }
 

@@ -1,12 +1,13 @@
-package Server;
+package server;
 
 import java.io.IOException;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static Commons.Constants.*;
-import static Server.Consts.*;
+import static commons.Constants.*;
+import static server.Consts.*;
+import static server.UserDBExceptions.*;
 
 /**
  * Class that handles the UDP socket, it keeps waiting for
@@ -20,7 +21,7 @@ class UDPServer extends Thread {
         The key is the address of the user who have been challenged, the value
         is the address of the user who started the challenge
      */
-    private ConcurrentHashMap<SocketAddress, SocketAddress> pendingChallenges = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<SocketAddress, SocketAddress> pendingChallenges = new ConcurrentHashMap<>();
 
 
     @Override
@@ -60,13 +61,13 @@ class UDPServer extends Thread {
 
                                 pendingChallenges.put(challengedAddress, challengerAddress);
 
-                            } catch (UserDB.UserNotFoundException e) {
+                            } catch (UserNotFoundException e) {
                                 errorMessage = RESPONSE_USER_NOT_FOUND;
-                            } catch (UserDB.NotFriendsException e) {
+                            } catch (NotFriendsException e) {
                                 errorMessage = RESPONSE_NOT_FRIENDS;
-                            } catch (UserDB.NotLoggedException e) {
+                            } catch (NotLoggedException e) {
                                 errorMessage = RESPONSE_NOT_LOGGED;
-                            } catch (UserDB.SameUserException e) {
+                            } catch (SameUserException e) {
                                 errorMessage = RESPONSE_SAME_USER;
                             }
 
@@ -95,10 +96,10 @@ class UDPServer extends Thread {
                                 challengeConfirmationPacket.setSocketAddress(challengerAddress);
                                 socket.send(challengeConfirmationPacket);
 
-                            } catch (UserDB.ChallengeRequestTimeoutException e) {
+                            } catch (ChallengeRequestTimeoutException e) {
                                 sendErrorMessage(socket, RESPONSE_CHALLENGE_TIMEOUT, challengerAddress);
                                 sendErrorMessage(socket, RESPONSE_CHALLENGE_TIMEOUT, challengerAddress);
-                            } catch (UserDB.UserNotFoundException e) {
+                            } catch (UserNotFoundException e) {
                                 sendErrorMessage(socket, RESPONSE_CHALLENGE_REFUSED, challengerAddress);
                                 sendErrorMessage(socket, RESPONSE_CHALLENGE_REFUSED, challengerAddress);
                             }

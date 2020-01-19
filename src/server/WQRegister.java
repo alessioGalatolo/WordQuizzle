@@ -1,6 +1,6 @@
-package Server;
+package server;
 
-import Commons.WQRegisterInterface;
+import commons.WQRegisterInterface;
 
 import java.rmi.RemoteException;
 import java.rmi.server.RemoteServer;

@@ -1,6 +1,6 @@
-package Client;
+package client;
 
-import Commons.WQRegisterInterface;
+import commons.WQRegisterInterface;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 
@@ -16,9 +16,15 @@ import java.rmi.registry.Registry;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static Commons.Constants.*;
+import static commons.Constants.*;
 
-
+/**
+ * A randomized client that sends random requests to the server
+ *
+ * May get as first argument the username to be used
+ * And if a second argument is found it will activate testing mode
+ * making the client print every interaction with the server
+ */
 public class AutoClientTesting {
 
     public static void main(String[] args){
@@ -33,18 +39,14 @@ public class AutoClientTesting {
         boolean test = false;
         try {
             currentLoggedUser = args[0]; //retrieves the username
-            test = !args[1].isEmpty();
+            test = !args[1].isEmpty(); //set test variable
         }catch (IndexOutOfBoundsException ignored){}
 
 
 
-        try(
-        UDPClient udpClient = new UDPClient(incomingChallenge, userBusy, (String otherUser) -> {
-            //function to be used when a new challenge message arrives
-            //returns whether or not the challenge has been accepted
-            return random.nextBoolean();
-        });
-        ClientNetworkHandler clientSocket = new ClientNetworkHandler(address, udpClient, null, test)){
+        try(UDPClient udpClient = new UDPClient(incomingChallenge, userBusy, (String otherUser) -> random.nextBoolean());
+        ClientNetworkHandler clientSocket = new ClientNetworkHandler(address, udpClient, null, test)
+        ){
             Registry r = LocateRegistry.getRegistry(RMI_PORT);
             WQRegisterInterface serverObject = (WQRegisterInterface) r.lookup(WQ_STUB_NAME); //get remote object
 
@@ -81,6 +83,12 @@ public class AutoClientTesting {
         }
     }
 
+    /**
+     * Starts and follows the progress of the challenge.
+     * It will send the server either a correct or wrong answer randomly
+     * @param userBusy a bool to set when the user has finished the challenge
+     * @param random a random generator
+     */
     static void startChallenge(ClientNetworkHandler.WordIterator wordIterator, AtomicBoolean userBusy, Random random) throws IOException {
         String lastTranslation = null;
 
@@ -97,6 +105,11 @@ public class AutoClientTesting {
         userBusy.set(false);
     }
 
+    /**
+     * Get an online translation the the given word
+     * @param nextWord The word to translate
+     * @return The correct translation
+     */
     private static String getTranslation(String nextWord) {
         try {
             URL url = new URL(getTranslationURL(nextWord));

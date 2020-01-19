@@ -1,8 +1,6 @@
-package Server;
+package server;
 
-import java.util.Random;
-
-import static Commons.Constants.*;
+import static commons.Constants.*;
 
 /**
  * Class with the most used constants from the server
@@ -23,9 +21,10 @@ class Consts {
     static final int ITALIAN_WORD_MAX_LENGTH = 29; //https://www.focus.it/cultura/curiosita/qual-e-la-parola-piu-lunga-della-lingua-italiana
     static final int WIN_SCORE_AMOUNT = 3;
     static final int LOSE_SCORE_AMOUNT = 0;
+    static final int WIN_BONUS_POINTS = 2;
 
     //challenge constants
-    private static final int CHALLENGE_TIME_PER_WORD = 10000; //in ms
+    private static final int CHALLENGE_TIME_PER_WORD = 5000; //in ms
     static final long CHALLENGE_TIMEOUT = CHALLENGE_WORDS_TO_MATCH * CHALLENGE_TIME_PER_WORD;
     static final long CHALLENGE_REQUEST_TIMEOUT = 5000; //time to wait before a challenge request expired
 
@@ -41,7 +40,7 @@ class Consts {
     static final String RESPONSE_SAME_USER = "The two user are the same";
     static final String RESPONSE_CHALLENGE_REFUSED = "The user challenged has not accepted within the timeout";
     static final String RESPONSE_UNKNOWN_USERNAME = "The given username is not involved in the given challenge";
-    static final String RESPONSE_WRONG_FORMAT = "Client send a request without proper format";
+    static final String RESPONSE_WRONG_FORMAT = "Client sent a request without proper format";
 
     /**
      * Creates a string to be sent in response to a translation

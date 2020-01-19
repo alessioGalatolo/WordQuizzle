@@ -1,4 +1,4 @@
-package Client;
+package client;
 
 import java.io.IOException;
 import java.net.*;
@@ -10,9 +10,9 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Predicate;
 
-import static Client.Consts.ACCEPTABLE_WAIT_CHALLENGE_CONFIRM;
-import static Client.Consts.getRequestChallenge;
-import static Commons.Constants.*;
+import static client.Consts.ACCEPTABLE_WAIT_CHALLENGE_CONFIRM;
+import static client.Consts.getRequestChallenge;
+import static commons.Constants.*;
 import static java.lang.Thread.interrupted;
 
 
@@ -31,9 +31,9 @@ class UDPClient implements AutoCloseable{
     private DatagramSocket socket; //UDP socket
 
     //a list and the lock and condition to use it
-    private ArrayList<String> receivedMessages = new ArrayList<>();
-    private ReentrantLock messagesLock = new ReentrantLock();
-    private Condition newMessage = messagesLock.newCondition();
+    private final ArrayList<String> receivedMessages = new ArrayList<>();
+    private final ReentrantLock messagesLock = new ReentrantLock();
+    private final Condition newMessage = messagesLock.newCondition();
 
     private Boolean waitingChallengeStart = false; //true if the UDP socket is waiting to get final confirmation of a challenge
 
@@ -107,7 +107,13 @@ class UDPClient implements AutoCloseable{
 
     }
 
-
+    /**
+     * Creates the udp socket and starts the thread who reads all the incoming messages
+     * @param startChallenge A boolean to be set to true when the user has to start a challenge (TCP)
+     * @param userBusy A boolean to be set true when the user is already doing a challenge
+     * @param challengeRequestFun Function to be called when a new challenge arrives
+     * @param test If set true the class will print al the interactions with the server
+     */
     UDPClient(AtomicBoolean startChallenge, AtomicBoolean userBusy, boolean test, Predicate<String> challengeRequestFun) throws SocketException{
         this(startChallenge, userBusy, challengeRequestFun);
         this.test = test;
@@ -156,6 +162,7 @@ class UDPClient implements AutoCloseable{
     /**
      * Terminates the reader thread and closes the socket
      */
+    @Override
     public void close() {
         readerThread.interrupt();
         try {
@@ -166,6 +173,9 @@ class UDPClient implements AutoCloseable{
         socket.close();
     }
 
+    /**
+     * @return The matchId of the latest challenge accepted
+     */
     int getLatestMatchId() {
         return latestMatchId;
     }

@@ -1,4 +1,4 @@
-package Server;
+package server;
 
 import java.io.IOException;
 import java.rmi.AlreadyBoundException;
@@ -7,11 +7,14 @@ import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.Scanner;
 
-import static Commons.Constants.*;
+import static commons.Constants.*;
 
 
 /**
  * Main class of server
+ *
+ * If an argument is found the server goes in testing mode,
+ * it will print out all the messages sent and received
  */
 public class Main {
 

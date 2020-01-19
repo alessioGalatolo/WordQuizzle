@@ -1,18 +1,18 @@
-import Client.AutoClient;
-import Client.AutoClientTesting;
-import Client.HumanClient;
+import client.AutoClient;
+import client.AutoClientTesting;
+import client.HumanClient;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 
-import static Commons.Constants.BASE_USERNAME;
-import static Commons.Constants.N_CLIENTS;
+import static commons.Constants.BASE_USERNAME;
+import static commons.Constants.N_CLIENTS;
 
 /**
  * Class to be run to test the program.
  */
-public class MainClass {
+class MainClass {
 
     public static void main(String[] args) {
         try(BufferedReader input = new BufferedReader(new InputStreamReader(System.in))) {
@@ -43,14 +43,14 @@ public class MainClass {
                         }).start();
                     }
 
-                    Server.Main.main(new String[0]);
+                    server.Main.main(new String[0]);
                     //server must be in main thread to allow for console input and termination
 
                     return;
                 } else if (response.equals("human")) {
                     System.out.println("I'm launching the server and a client which will emulate human behaviour");
-                    Thread server = new Thread(() -> Server.Main.main(new String[]{"test"}));
-                    server.start();
+                    Thread serverThread = new Thread(() -> server.Main.main(new String[]{"test"}));
+                    serverThread.start();
 
                     //waiting server to start up
                     try {
@@ -69,7 +69,7 @@ public class MainClass {
 
                     otherClient.interrupt();
                     otherClient.join();
-                    server.interrupt();
+                    serverThread.interrupt();
                     return;
                 } else {
                     System.out.println("Not recognized, please try again");

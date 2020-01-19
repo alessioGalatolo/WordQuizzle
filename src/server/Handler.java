@@ -1,6 +1,6 @@
-package Server;
+package server;
 
-import Commons.WQRegisterInterface;
+import commons.WQRegisterInterface;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -14,16 +14,18 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static Commons.Constants.*;
+import static commons.Constants.*;
+import static server.UserDBExceptions.*;
+import static server.ChallengeExceptions.*;
 
 final class Handler implements Runnable {
     private final SocketChannel socket;
     private final SelectionKey selectionKey;
-    private AtomicBoolean processed = new AtomicBoolean(false);
-    private ByteBuffer input = ByteBuffer.allocate(MAX_MESSAGE_LENGTH);
-    private ByteBuffer preOutput = ByteBuffer.allocate(INT_SIZE);
-    private ByteBuffer output = ByteBuffer.allocate(MAX_MESSAGE_LENGTH);
-    private static ThreadPoolExecutor threadPool = (ThreadPoolExecutor) Executors.newFixedThreadPool(Consts.SERVER_THREADS);
+    private final AtomicBoolean processed = new AtomicBoolean(false);
+    private final ByteBuffer input = ByteBuffer.allocate(MAX_MESSAGE_LENGTH);
+    private final ByteBuffer preOutput = ByteBuffer.allocate(INT_SIZE);
+    private final ByteBuffer output = ByteBuffer.allocate(MAX_MESSAGE_LENGTH);
+    private static final ThreadPoolExecutor threadPool = (ThreadPoolExecutor) Executors.newFixedThreadPool(Consts.SERVER_THREADS);
     private static final int IO_OPERATION = 0, PROCESSING = 2;
     private int state = IO_OPERATION;
 
@@ -99,7 +101,7 @@ final class Handler implements Runnable {
         //variables to be used inside switch statement
         String response = "";
         int matchId = 0;
-        String username = "";
+        String username;
 
         try {
             InetAddress clientAddress = ((InetSocketAddress) ((SocketChannel) selectionKey.channel()).getRemoteAddress()).getAddress();
@@ -173,8 +175,7 @@ final class Handler implements Runnable {
                     break;
                 case REQUEST_CHALLENGE_RECAP:
                     matchId = Integer.parseInt(messageFragments[1]);
-                    username = messageFragments[2];
-                    output = ByteBuffer.allocate(MAX_MESSAGE_LENGTH);
+                    output.clear();
                     threadPool.execute(new RecapTask(matchId, output, preOutput, processed, threadPool));
                     return;
 
@@ -186,33 +187,34 @@ final class Handler implements Runnable {
             }
 
             //set error response in case of exception
-        } catch (UserDB.UserNotFoundException e) {
+        } catch (UserNotFoundException e) {
             response = Consts.RESPONSE_USER_NOT_FOUND;
         } catch (WQRegisterInterface.InvalidPasswordException e) {
             response = Consts.RESPONSE_WRONG_PASSWORD;
-        } catch (UserDB.AlreadyLoggedException e) {
+        } catch (AlreadyLoggedException e) {
             response = Consts.RESPONSE_ALREADY_LOGGED;
-        } catch (UserDB.AlreadyFriendsException e) {
+        } catch (AlreadyFriendsException e) {
             response = Consts.RESPONSE_ALREADY_FRIENDS;
-        } catch (UserDB.NotLoggedException e) {
+        } catch (NotLoggedException e) {
             response = Consts.RESPONSE_NOT_LOGGED;
-        } catch (UserDB.SameUserException e) {
+        } catch (SameUserException e) {
             response = Consts.RESPONSE_SAME_USER;
-        } catch (ChallengeHandler.Challenge.UnknownUsernameException e) {
+        } catch (UnknownUsernameException e) {
             response = Consts.RESPONSE_UNKNOWN_USERNAME;
-        } catch (ChallengeHandler.Challenge.GameTimeoutException e) {
+        } catch (GameTimeoutException e) {
                 response = RESPONSE_CHALLENGE_TIMEOUT + "\n";
-                response += ChallengeHandler.instance.getRecap(matchId);
-        } catch (ChallengeHandler.Challenge.EndOfMatchException e) {
+        } catch (EndOfMatchException e) {
             response += RESPONSE_WAITING_OTHER_USER;
         } catch (IndexOutOfBoundsException e){
             //client sent a message without proper format
-            response = Consts.RESPONSE_WRONG_FORMAT;
+            response = Consts.RESPONSE_WRONG_FORMAT + ": " + message;
         } catch (IOException e) {
             e.printStackTrace();
         }
 
-        output = ByteBuffer.wrap(response.getBytes(StandardCharsets.UTF_8));
+        output.clear();
+        output.put(response.getBytes(StandardCharsets.UTF_8));
+        output.flip();
 
         //sending first the size of the buffer to be allocated
         preOutput.putInt(output.remaining());

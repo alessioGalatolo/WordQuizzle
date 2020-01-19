@@ -1,4 +1,4 @@
-package Commons;
+package commons;
 
 import java.util.Random;
 
@@ -37,7 +37,7 @@ public class Constants {
     public static final String REQUEST_CHALLENGE_RECAP = "challenge_recap";
 
     //challenge constants
-    public static final int CHALLENGE_WORDS_TO_MATCH = 6;
+    public static final int CHALLENGE_WORDS_TO_MATCH = 3;
     public static final String CHALLENGE_OK = "Ok";
     public static final String CHALLENGE_REFUSED = "challenge_refused";
     public static final String CHALLENGE_WORD_MISMATCH = "FAIL"; //when the user sends a wrong translation
@@ -67,7 +67,7 @@ public class Constants {
     //constant used for the automatic client testing
     private static final Random random = new Random(System.currentTimeMillis());
     public static final String BASE_USERNAME = "username";
-    public static final int N_CLIENTS = 500;
+    public static final int N_CLIENTS = 10;
     public static final int CLIENT_TESTS = 20;
 
     public static String getRandomUserName(String thisUser) {

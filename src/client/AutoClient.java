@@ -1,6 +1,6 @@
-package Client;
+package client;
 
-import Commons.WQRegisterInterface;
+import commons.WQRegisterInterface;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -9,9 +9,13 @@ import java.rmi.registry.Registry;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static Client.AutoClientTesting.startChallenge;
-import static Commons.Constants.*;
+import static client.AutoClientTesting.startChallenge;
+import static commons.Constants.*;
 
+/**
+ * A randomized client that will login, wait and accept any challenge it receives
+ * It will simulate the course of the challenge
+ */
 public class AutoClient implements Runnable{
 
     @Override
@@ -29,8 +33,7 @@ public class AutoClient implements Runnable{
         try (
                 UDPClient udpClient = new UDPClient(incomingChallenge, userBusy, (String otherUser) -> {
                     //function to be used when a new challenge message arrives
-                    //returns whether or not the challenge has been accepted
-                    return true;
+                    return true; //accept every challenge
                 });
                 ClientNetworkHandler clientSocket = new ClientNetworkHandler(address, udpClient, null)
         ) {
@@ -47,6 +50,8 @@ public class AutoClient implements Runnable{
             clientSocket.handler(Command.LOGIN, currentLoggedUser, "", pass);
 
             while (!Thread.interrupted()) {
+
+                //Wait for a challenge
                 if (incomingChallenge.get()) {
                     incomingChallenge.set(false);
                     startChallenge(clientSocket.getWordIterator(currentLoggedUser), userBusy, random);

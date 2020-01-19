@@ -1,8 +1,8 @@
-package Client;
+package client;
 
 import java.util.Random;
 
-import static Commons.Constants.*;
+import static commons.Constants.*;
 
 /**
  * Class containing all the command a user can enter
@@ -18,7 +18,7 @@ public enum Command {
     SCORE;
 
 
-    private static Random random = new Random();
+    private static final Random random = new Random();
 
     /**
      * @return a random command different from REGISTER, LOGIN, LOGOUT
@@ -27,6 +27,9 @@ public enum Command {
         return values()[3 + random.nextInt(values().length - 3)]; //get a command different from the first three
     }
 
+    /**
+     * @return a string containing the usage of the commands
+     */
     public static String usage() {
         String usage = "Usage: \n";
         usage += REQUEST_REGISTER + " username password\n";

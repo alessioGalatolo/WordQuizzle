@@ -1,4 +1,4 @@
-package Server;
+package server;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -9,12 +9,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * A simple task that waits the two users involved in a challenge to finish before writing to
  * a byte buffer a recap of the challenge
  */
-public class RecapTask implements Runnable {
-    private int matchId;
-    private ByteBuffer output;
-    private ByteBuffer preOutput;
-    private AtomicBoolean processed;
-    private ThreadPoolExecutor threadPool;
+class RecapTask implements Runnable {
+    private final int matchId;
+    private final ByteBuffer output;
+    private final ByteBuffer preOutput;
+    private final AtomicBoolean processed;
+    private final ThreadPoolExecutor threadPool;
 
     RecapTask(int matchId, ByteBuffer output, ByteBuffer preOutput, AtomicBoolean processed, ThreadPoolExecutor threadPool) {
         this.matchId = matchId;
